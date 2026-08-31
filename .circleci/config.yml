@@ -1,0 +1,41 @@
+
+version: 2.1
+
+jobs:
+  main:
+    docker:
+      - image: cimg/node:lts-browsers
+    steps:
+      - checkout
+      # look for existing cache and restore if found
+      - restore_cache:
+          key: npm-dependencies-{{ checksum "pnpm-lock.yaml" }}
+      # install dependencies
+      - run:
+          name: install dependencies
+          command: pnpm install --ignore-scripts
+       # pnpm version
+      - run:
+         name: Install pnpm package manager
+         command: |
+          corepack enable
+          corepack prepare pnpm@8.8 --activate
+      # save any changes to the cache
+      - save_cache:
+          key: npm-dependencies-{{ checksum "pnpm-lock.yaml" }}
+          paths:
+            - node_modules
+      - run:
+          name: Run lint and tests
+          command: pnpm run ci
+
+workflows:
+  version: 2
+
+  ci:
+    jobs:
+      - main:
+          filters:
+            branches:
+              only:
+                - main

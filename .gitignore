@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+
+# Generated application and package builds
+dist/
+es/
+lib/
+build/
+out/
+.next/
+coverage/
+
+# Framework and task caches
+.umi*/
+.dumi*/
+.nx/
+.turbo/
+.cache/
+
+# Local environment and credentials
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.swp
+*.swo
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local repository synchronization helpers
+repo_sync
+syncSecretPad.js

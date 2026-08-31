@@ -1,0 +1,25 @@
+.title {
+  display: flex;
+  align-items: center;
+}
+
+.computeModeTag {
+  height: 20px;
+  margin-right: 4px;
+  background: white;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 18px;
+}
+
+.tabs {
+  :global {
+    .ant-tabs-tab {
+      padding: 0 0 12px;
+    }
+
+    .ant-tabs-nav::before {
+      border: none;
+    }
+  }
+}

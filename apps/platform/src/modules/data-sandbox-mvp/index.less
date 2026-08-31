@@ -1,0 +1,62 @@
+.page {
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 20px 24px;
+  background: #f5f7fa;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0 0 4px !important;
+}
+
+.content {
+  min-height: calc(100% - 72px);
+  padding: 20px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.notice {
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cards {
+  display: grid;
+  margin-bottom: 20px;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.code {
+  overflow: auto;
+  max-height: 300px;
+  padding: 12px;
+  border-radius: 6px;
+  background: #f6f8fa;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.section {
+  margin-top: 20px;
+}
+
+.dangerText {
+  color: #cf1322;
+}

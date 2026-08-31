@@ -1,0 +1,90 @@
+.wrap {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  background: #fff;
+}
+
+.header {
+  display: flex;
+  height: 48px;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+  gap: 8px;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  color: #333;
+  cursor: pointer;
+  font-size: 16px;
+
+  &:hover {
+    background: #f0f0f0;
+  }
+}
+
+.title {
+  color: #333;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.canvasName {
+  width: 220px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.left {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid #f0f0f0;
+  background: #fff;
+  overflow-y: auto;
+
+  :global(.ant-tabs-nav) {
+    margin-bottom: 0;
+  }
+}
+
+.center {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.graph {
+  position: absolute;
+  inset: 0;
+}
+
+.zoomBar {
+  position: absolute;
+  z-index: 10;
+  bottom: 16px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  gap: 4px;
+  transform: translateX(-50%);
+}
