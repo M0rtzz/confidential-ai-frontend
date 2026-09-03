@@ -15,7 +15,12 @@ import {
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
-import { MvpPage, RefreshButton, formatTime } from '@/modules/data-sandbox-mvp/common';
+import {
+  MvpPage,
+  RefreshButton,
+  formatTime,
+  saveBlob,
+} from '@/modules/data-sandbox-mvp/common';
 import { TeeExportApi, responseData } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
 
@@ -49,6 +54,8 @@ const errorMessage = requestErrorMessage;
 export const TeeExportApprovalComponent = () => {
   const [mine, setMine] = useState<DataSandboxRecord[]>([]);
   const [pending, setPending] = useState<DataSandboxRecord[]>([]);
+  const [exportable, setExportable] = useState<DataSandboxRecord[]>([]);
+  const [busyId, setBusyId] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
   const [detail, setDetail] = useState<DataSandboxRecord>();
@@ -62,12 +69,14 @@ export const TeeExportApprovalComponent = () => {
     setLoading(true);
     setError('');
     try {
-      const [mineResponse, pendingResponse] = await Promise.all([
+      const [mineResponse, pendingResponse, exportableResponse] = await Promise.all([
         TeeExportApi.mine(),
         TeeExportApi.pending(),
+        TeeExportApi.exportable(),
       ]);
       setMine(responseData(mineResponse, {}).items || []);
       setPending(responseData(pendingResponse, {}).items || []);
+      setExportable(responseData(exportableResponse, {}).items || []);
     } catch (requestError: unknown) {
       const text = errorMessage(requestError, '加载结果导出审批失败');
       setError(text);
@@ -130,28 +139,38 @@ export const TeeExportApprovalComponent = () => {
     });
   };
 
+  /** 取回信封、在本机构平台内解封解密，并把结果明文直接交给浏览器保存。 */
   const retrieve = async (row: DataSandboxRecord) => {
+    setBusyId(row.exportId);
     try {
-      const result = responseData(await TeeExportApi.exportEnvelope(row.resultId), {});
-      Modal.success({
-        title: '密钥信封已取回',
-        content: (
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label="密文对象">
-              <Text copyable>{result.objectId}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="有效期至">
-              {formatTime(result.expiresAt)}
-            </Descriptions.Item>
-            <Descriptions.Item label="接收者证书">
-              <Text copyable>{result.keyEnvelope?.recipientCertSha256}</Text>
-            </Descriptions.Item>
-          </Descriptions>
-        ),
-      });
+      const { blob, fileName } = await TeeExportApi.download(row.exportId);
+      saveBlob(blob, fileName);
+      message.success(`已解密并下载 ${fileName}`);
     } catch (requestError: unknown) {
-      message.error(errorMessage(requestError, '取回密钥信封失败'));
+      message.error(errorMessage(requestError, '取回并解密失败'));
+    } finally {
+      setBusyId('');
     }
+  };
+
+  /** 从可导出结果发起工单；接收方固定为当前机构的受管证书。 */
+  const submitExport = (row: DataSandboxRecord) => {
+    Modal.confirm({
+      title: '申请导出密文结果',
+      content: '接收方为当前机构，系统将使用本机构受管证书密封结果密钥。确认提交？',
+      okText: '提交申请',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await TeeExportApi.create(row.resultId);
+          message.success('导出申请已提交，请等待全部贡献机构投票');
+          await refresh();
+          setActiveTab('mine');
+        } catch (requestError: unknown) {
+          message.error(errorMessage(requestError, '提交导出申请失败'));
+        }
+      },
+    });
   };
 
   const columns = [
@@ -204,8 +223,12 @@ export const TeeExportApprovalComponent = () => {
             查看详情
           </Button>
           {row.status === 'APPROVED' && (
-            <Button type="link" onClick={() => retrieve(row)}>
-              取回信封
+            <Button
+              type="link"
+              loading={busyId === row.exportId}
+              onClick={() => retrieve(row)}
+            >
+              取回并解密
             </Button>
           )}
           {row.canCancel && activeTab === 'mine' && (
@@ -218,10 +241,75 @@ export const TeeExportApprovalComponent = () => {
     },
   ];
 
+  const exportableColumns = [
+    {
+      title: '结果',
+      key: 'result',
+      render: (_: unknown, row: DataSandboxRecord) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{row.kind || '-'}</Text>
+          <Text type="secondary" copyable={{ text: row.resultId }}>
+            {short(row.resultId, 18)}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: '密文对象',
+      key: 'object',
+      render: (_: unknown, row: DataSandboxRecord) => (
+        <Space direction="vertical" size={0}>
+          <Text copyable={{ text: row.objectId }}>{short(row.objectId)}</Text>
+          <Text type="secondary">摘要 {short(row.ciphertextSha256, 8)}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: '结果密钥',
+      key: 'key',
+      render: (_: unknown, row: DataSandboxRecord) =>
+        `${short(row.keyId, 18)} · v${row.keyVersion || '-'}`,
+    },
+    {
+      title: '贡献机构',
+      key: 'contributors',
+      render: (_: unknown, row: DataSandboxRecord) =>
+        (Array.isArray(row.contributors) ? row.contributors : []).join('、') || '-',
+    },
+    {
+      title: '已有工单',
+      key: 'latest',
+      render: (_: unknown, row: DataSandboxRecord) =>
+        row.latestStatus ? (
+          <Tag color={statusColor[row.latestStatus]}>
+            {statusLabel[row.latestStatus] || row.latestStatus}
+          </Tag>
+        ) : (
+          <Text type="secondary">未申请</Text>
+        ),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      render: (_: unknown, row: DataSandboxRecord) => (
+        <Space wrap>
+          <Button type="link" onClick={() => submitExport(row)}>
+            申请导出
+          </Button>
+          {row.latestExportId && (
+            <Button type="link" onClick={() => openDetail(row.latestExportId)}>
+              查看工单
+            </Button>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <MvpPage
       title="结果导出审批"
-      description="DATA 与 MODEL 密文结果需全部贡献机构同意后取回五分钟有效的密钥信封"
+      description="DATA 与 MODEL 密文结果需全部贡献机构同意后，由本机构平台取回信封、本地解封并下载明文"
       error={error}
       onRetry={refresh}
       extra={<RefreshButton loading={loading} onClick={refresh} />}
@@ -229,13 +317,29 @@ export const TeeExportApprovalComponent = () => {
       <Alert
         showIcon
         type="info"
-        message="中心端只裁决审批并密封结果密钥，不解密导出结果。REPORT 按授权规则明文展示，无需申请。"
+        message="中心端只裁决审批并密封结果密钥，不解密导出结果；信封在本机构平台内使用，不进入浏览器。REPORT 按授权规则明文展示，无需申请。"
         style={{ marginBottom: 16 }}
       />
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
+          {
+            key: 'exportable',
+            label: `可导出结果${exportable.length ? ` (${exportable.length})` : ''}`,
+            children:
+              exportable.length || loading ? (
+                <Table
+                  rowKey="resultId"
+                  loading={loading}
+                  dataSource={exportable}
+                  columns={exportableColumns}
+                  pagination={{ pageSize: 10 }}
+                />
+              ) : (
+                <Empty description="本机构暂无可导出的密文结果" />
+              ),
+          },
           {
             key: 'pending',
             label: `待我审批${pending.length ? ` (${pending.length})` : ''}`,
@@ -265,7 +369,7 @@ export const TeeExportApprovalComponent = () => {
                   pagination={{ pageSize: 10 }}
                 />
               ) : (
-                <Empty description="暂无导出申请，请从密文结果卡发起" />
+                <Empty description="暂无导出申请，请在「可导出结果」页签发起" />
               ),
           },
         ]}

@@ -122,7 +122,6 @@ const renderPreviewTable = (preview: DataSandboxRecord, showRowCount = true) => 
 
 /** P6 已验签结果的 P7 展示：密文只展示元数据，REPORT 直接展示明文内容。 */
 const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
-  const [exportStatuses, setExportStatuses] = useState<Record<string, string>>({});
   let summary: DataSandboxRecord = {};
   let parseError = false;
   try {
@@ -138,28 +137,10 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
     ? summary.encryptedOutputs
     : [];
   const reports = Array.isArray(summary.reports) ? summary.reports : [];
-  const refreshExportStatuses = useCallback(async () => {
-    try {
-      const items = responseData(await TeeExportApi.mine(), {}).items || [];
-      const statuses: Record<string, string> = {};
-      items.forEach((item: DataSandboxRecord) => {
-        if (item.resultId && !statuses[item.resultId]) {
-          statuses[item.resultId] = item.status;
-        }
-      });
-      setExportStatuses(statuses);
-    } catch {
-      // 结果摘要仍可展示；审批列表页面会提供完整错误信息。
-    }
-  }, []);
-  useEffect(() => {
-    if (isTeeResult) void refreshExportStatuses();
-  }, [isTeeResult, refreshExportStatuses]);
   const submitExport = async (resultId: string) => {
     try {
       await TeeExportApi.create(resultId);
-      message.success('导出申请已提交，请等待全部贡献机构投票');
-      await refreshExportStatuses();
+      message.success('导出申请已提交，请到「结果导出审批」查看票面与下载');
     } catch (error: unknown) {
       message.error(requestErrorMessage(error, '提交导出申请失败'));
     }
@@ -180,8 +161,7 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
       {encrypted.map((item: DataSandboxRecord) => {
-        const status =
-          exportStatuses[item.resultId] || item.exportState || 'PENDING_APPROVAL';
+        const status = item.exportState || 'PENDING_APPROVAL';
         const statusView: Record<string, [string, string]> = {
           APPROVED: ['success', '已批准'],
           REJECTED: ['error', '已拒绝'],

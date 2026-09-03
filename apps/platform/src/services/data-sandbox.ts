@@ -620,6 +620,7 @@ const teePost = <T>(path: string, data?: DataSandboxRecord) =>
   });
 
 export const TeeExportApi = {
+  exportable: () => teeGet<DataSandboxRecord>('/exports/exportable'),
   mine: () => teeGet<DataSandboxRecord>('/exports/mine'),
   pending: () => teeGet<DataSandboxRecord>('/exports/pending'),
   detail: (exportId: string) => teeGet<DataSandboxRecord>(`/exports/${exportId}`),
@@ -632,10 +633,34 @@ export const TeeExportApi = {
     teePost<DataSandboxRecord>(`/exports/${exportId}/action`, { action, comment }),
   cancel: (exportId: string) =>
     teePost<DataSandboxRecord>(`/exports/${exportId}/cancel`),
-  exportEnvelope: (resultId: string) =>
-    teePost<DataSandboxRecord>(`/results/${resultId}/export`, {
-      requestId: `egress-${traceId()}`,
-    }),
+  // 取回并解封在接收机构的平台实例内一次完成；密钥信封不进入浏览器，响应体即结果明文。
+  download: async (exportId: string) => {
+    const response = await fetch(`${teeBase}/exports/${exportId}/download`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'User-Token': localStorage.getItem('User-Token') || '',
+        'Trace-Id': traceId(),
+      },
+    });
+    const disposition = response.headers.get('Content-Disposition') || '';
+    if (
+      !response.ok ||
+      (response.headers.get('Content-Type') || '').includes('application/json')
+    ) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(
+        body?.data?.errorCode ||
+          body?.status?.msg ||
+          `下载失败: HTTP ${response.status}`,
+      );
+    }
+    const match = /filename="([^"]+)"/.exec(disposition);
+    return {
+      blob: await response.blob(),
+      fileName: match ? match[1] : `${exportId}.bin`,
+    };
+  },
 };
 
 export const responseData = <T>(response: DataSandboxResponse<T>, fallback: T): T => {
