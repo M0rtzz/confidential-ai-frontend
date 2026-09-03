@@ -597,6 +597,47 @@ export const DataModelApi = {
     modelApiPost<DataSandboxRecord>('/approvals/test', data),
 };
 
+// P7 TEE 结果出域：全部接口由客户端实例委派到中心端，页面不直接接触密钥明文。
+const teeBase = '/api/v1alpha1/tee';
+const teeGet = <T>(path: string) =>
+  request<DataSandboxResponse<T>>(`${teeBase}${path}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      'User-Token': localStorage.getItem('User-Token') || '',
+      'Trace-Id': traceId(),
+    },
+  });
+const teePost = <T>(path: string, data?: DataSandboxRecord) =>
+  request<DataSandboxResponse<T>>(`${teeBase}${path}`, {
+    method: 'POST',
+    data: { contractVersion: 'tee-contract/1.0', ...(data || {}) },
+    credentials: 'include',
+    headers: {
+      'User-Token': localStorage.getItem('User-Token') || '',
+      'Trace-Id': traceId(),
+    },
+  });
+
+export const TeeExportApi = {
+  mine: () => teeGet<DataSandboxRecord>('/exports/mine'),
+  pending: () => teeGet<DataSandboxRecord>('/exports/pending'),
+  detail: (exportId: string) => teeGet<DataSandboxRecord>(`/exports/${exportId}`),
+  create: (resultId: string) =>
+    teePost<DataSandboxRecord>('/exports', {
+      requestId: `export-${traceId()}`,
+      resultId,
+    }),
+  action: (exportId: string, action: 'APPROVE' | 'REJECT', comment = '') =>
+    teePost<DataSandboxRecord>(`/exports/${exportId}/action`, { action, comment }),
+  cancel: (exportId: string) =>
+    teePost<DataSandboxRecord>(`/exports/${exportId}/cancel`),
+  exportEnvelope: (resultId: string) =>
+    teePost<DataSandboxRecord>(`/results/${resultId}/export`, {
+      requestId: `egress-${traceId()}`,
+    }),
+};
+
 export const responseData = <T>(response: DataSandboxResponse<T>, fallback: T): T => {
   if (response.status?.code !== 0) {
     throw new Error(response.status?.msg || '请求失败');

@@ -2,7 +2,9 @@ import {
   Alert,
   AutoComplete,
   Button,
+  Card,
   DatePicker,
+  Descriptions,
   Drawer,
   Form,
   Input,
@@ -20,17 +22,18 @@ import {
   Upload,
 } from 'antd';
 import dayjs from 'dayjs';
+import { parse } from 'query-string';
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation } from 'umi';
 
+import { formatTime, MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
 import {
   DataComputeApi,
   DataDevApi,
-  DataSandboxRecord,
+  TeeExportApi,
   responseData,
 } from '@/services/data-sandbox';
-import { parse } from 'query-string';
-import { useLocation } from 'umi';
-import { formatTime, MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
+import type { DataSandboxRecord } from '@/services/data-sandbox';
 
 const artifactTypeLabels: Record<string, string> = {
   JAR: 'JAR 制品',
@@ -113,6 +116,127 @@ const renderPreviewTable = (preview: DataSandboxRecord, showRowCount = true) => 
         }))}
       />
     </div>
+  );
+};
+
+/** P6 已验签结果的 P7 展示：密文只展示元数据，REPORT 直接展示明文内容。 */
+const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
+  const [exportStatuses, setExportStatuses] = useState<Record<string, string>>({});
+  let summary: DataSandboxRecord = {};
+  let parseError = false;
+  try {
+    summary =
+      typeof summaryValue === 'string'
+        ? JSON.parse(summaryValue || '{}')
+        : (summaryValue as DataSandboxRecord) || {};
+  } catch {
+    parseError = true;
+  }
+  const isTeeResult = summary.runtimeMode === 'SIMULATION';
+  const encrypted = Array.isArray(summary.encryptedOutputs)
+    ? summary.encryptedOutputs
+    : [];
+  const reports = Array.isArray(summary.reports) ? summary.reports : [];
+  const refreshExportStatuses = useCallback(async () => {
+    try {
+      const items = responseData(await TeeExportApi.mine(), {}).items || [];
+      const statuses: Record<string, string> = {};
+      items.forEach((item: DataSandboxRecord) => {
+        if (item.resultId && !statuses[item.resultId]) {
+          statuses[item.resultId] = item.status;
+        }
+      });
+      setExportStatuses(statuses);
+    } catch {
+      // 结果摘要仍可展示；审批列表页面会提供完整错误信息。
+    }
+  }, []);
+  useEffect(() => {
+    if (isTeeResult) void refreshExportStatuses();
+  }, [isTeeResult, refreshExportStatuses]);
+  const submitExport = async (resultId: string) => {
+    try {
+      await TeeExportApi.create(resultId);
+      message.success('导出申请已提交，请等待全部贡献机构投票');
+      await refreshExportStatuses();
+    } catch (error: unknown) {
+      message.error(error instanceof Error ? error.message : '提交导出申请失败');
+    }
+  };
+  const requestExport = (resultId: string) => {
+    Modal.confirm({
+      title: '申请导出密文结果',
+      content: '接收方为当前机构，系统将使用本机构受管证书密封结果密钥。确认提交？',
+      okText: '提交申请',
+      cancelText: '取消',
+      onOk: () => submitExport(resultId),
+    });
+  };
+  if (parseError) {
+    return <Alert showIcon type="error" message="TEE 结果摘要无法解析" />;
+  }
+  if (!isTeeResult) return null;
+  return (
+    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+      {encrypted.map((item: DataSandboxRecord) => {
+        const status =
+          exportStatuses[item.resultId] || item.exportState || 'PENDING_APPROVAL';
+        const statusView: Record<string, [string, string]> = {
+          APPROVED: ['success', '已批准'],
+          REJECTED: ['error', '已拒绝'],
+          CANCELLED: ['default', '已撤回'],
+          PENDING_APPROVAL: ['processing', '待审批'],
+        };
+        const [color, label] = statusView[status] || statusView.PENDING_APPROVAL;
+        return (
+          <Card
+            key={item.resultId || item.objectId}
+            size="small"
+            title={`${item.kind || 'DATA'} 密文结果`}
+            extra={<Tag color={color}>{label}</Tag>}
+          >
+            <Descriptions size="small" column={1}>
+              <Descriptions.Item label="结果标识">
+                {item.resultId || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="密文对象">
+                {item.objectId || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="结果密钥">
+                {item.keyId || '-'} · v{item.keyVersion || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="结果摘要">
+                {String(item.ciphertextSha256 || '-').slice(0, 8)}…
+              </Descriptions.Item>
+              <Descriptions.Item label="贡献机构">
+                {(item.contributors || []).join('、') || '-'}
+              </Descriptions.Item>
+            </Descriptions>
+            <Alert
+              showIcon
+              type="info"
+              message="TEE 结果为密文对象，导出审批完成前不提供明文预览。"
+              style={{ margin: '12px 0' }}
+            />
+            <Button type="primary" onClick={() => requestExport(item.resultId)}>
+              申请导出
+            </Button>
+          </Card>
+        );
+      })}
+      {reports.map((report: DataSandboxRecord, index: number) => (
+        <Card
+          key={`${report.reportKind || 'REPORT'}-${index}`}
+          size="small"
+          title={`${report.reportKind || 'REPORT'} 明文报告`}
+          extra={<Tag color="success">按授权规则明文出域</Tag>}
+        >
+          <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+            {JSON.stringify(report.content || {}, null, 2)}
+          </pre>
+        </Card>
+      ))}
+    </Space>
   );
 };
 
@@ -1482,6 +1606,7 @@ export const DataDevComponent = () => {
             {detailItem.finished_at && (
               <div>完成：{formatTime(detailItem.finished_at)}</div>
             )}
+            <TeeResultCards summaryValue={detailItem.result_summary} />
             {detailItem.retry_count > 0 && (
               <div>重试次数：{detailItem.retry_count}</div>
             )}

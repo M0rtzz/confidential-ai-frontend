@@ -6,6 +6,7 @@ import {
   DashboardOutlined,
   DeploymentUnitOutlined,
   ExperimentOutlined,
+  ExportOutlined,
   FileSearchOutlined,
   IdcardOutlined,
   SafetyCertificateOutlined,
@@ -20,6 +21,7 @@ import { ReactComponent as DataManager } from '@/assets/jiaochabiao.svg';
 import { ReactComponent as CooperativeNode } from '@/assets/join-node.svg';
 import { ReactComponent as projectManager } from '@/assets/project-manager.svg';
 import { ReactComponent as Workbench } from '@/assets/workbench.svg';
+import { hasAccess, Platform } from '@/components/platform-wrapper';
 import { CooperativeNodeListComponent } from '@/modules/cooperative-node-list';
 import { DataCatalogComponent } from '@/modules/data-catalog';
 import { HomeLayout } from '@/modules/layout/home-layout';
@@ -30,7 +32,6 @@ import { NodeService } from '@/modules/node';
 import { P2pProjectListComponent } from '@/modules/p2p-project-list';
 import { P2PWorkbenchComponent } from '@/modules/p2p-workbench/workbench.view';
 import { useModel } from '@/util/valtio-helper';
-import { hasAccess, Platform } from '@/components/platform-wrapper';
 
 // Keep the workbench bundle small and isolate optional MVP pages. A failure in
 // one management page must not prevent the default workbench from mounting.
@@ -49,6 +50,13 @@ const ModelApprovalComponent = lazy(() =>
 const SandboxApprovalComponent = lazy(() =>
   import('@/modules/sandbox-approval').then(
     ({ SandboxApprovalComponent: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
+const TeeExportApprovalComponent = lazy(() =>
+  import('@/modules/tee-export-approval').then(
+    ({ TeeExportApprovalComponent: Component }) => ({
       default: Component,
     }),
   ),
@@ -170,6 +178,12 @@ const menuItems: {
     icon: <SafetyCertificateOutlined />,
     component: <ModelApprovalComponent />,
     key: 'model-approval',
+  },
+  {
+    label: '结果导出审批',
+    icon: <ExportOutlined />,
+    component: <TeeExportApprovalComponent />,
+    key: 'tee-export-approval',
   },
   {
     label: '统一日志',
