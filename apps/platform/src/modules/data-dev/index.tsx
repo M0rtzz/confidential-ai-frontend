@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'umi';
 
 import { formatTime, MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
+import { requestErrorMessage } from '@/modules/tee-export-approval/error';
 import {
   DataComputeApi,
   DataDevApi,
@@ -160,7 +161,7 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
       message.success('导出申请已提交，请等待全部贡献机构投票');
       await refreshExportStatuses();
     } catch (error: unknown) {
-      message.error(error instanceof Error ? error.message : '提交导出申请失败');
+      message.error(requestErrorMessage(error, '提交导出申请失败'));
     }
   };
   const requestExport = (resultId: string) => {

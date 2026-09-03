@@ -19,6 +19,8 @@ import { MvpPage, RefreshButton, formatTime } from '@/modules/data-sandbox-mvp/c
 import { TeeExportApi, responseData } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
 
+import { requestErrorMessage } from './error';
+
 const { Paragraph, Text } = Typography;
 
 const statusLabel: Record<string, string> = {
@@ -42,8 +44,7 @@ const short = (value?: unknown, size = 12) => {
   return text.length > size ? `${text.slice(0, size)}…` : text || '-';
 };
 
-const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const errorMessage = requestErrorMessage;
 
 export const TeeExportApprovalComponent = () => {
   const [mine, setMine] = useState<DataSandboxRecord[]>([]);
