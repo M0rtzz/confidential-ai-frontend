@@ -115,7 +115,7 @@ export const TasksDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="⑤ TEE 执行" width={900} open={open} onClose={onClose}>
+    <Drawer title="TEE 执行" width={900} open={open} onClose={onClose}>
       <Table
         rowKey="taskId"
         size="small"

@@ -45,3 +45,25 @@ export const hexRows = (hex: string) => {
   }
   return rows;
 };
+
+/** 后端返回的是契约枚举，界面上统一换成中文，未知取值原样显示便于排查。 */
+export const kindLabel = (value?: string) =>
+  ({ ASSET: '密文资产', DATA: '结果数据', MODEL: '模型', REPORT: '报告' }[value || ''] || value || '-');
+
+export const keyStateLabel = (value?: string) =>
+  ({ ACTIVE: '生效', REVOKED: '已吊销' }[value || ''] || value || '-');
+
+export const exportStateLabel = (value?: string) =>
+  ({
+    PENDING_APPROVAL: '待投票',
+    APPROVED: '已通过',
+    REJECTED: '已否决',
+    CANCELLED: '已撤销',
+    EXPORTED: '已取回',
+  }[value || ''] || value || '-');
+
+export const voteLabel = (value?: string) =>
+  ({ APPROVE: '同意', REJECT: '否决', PENDING: '待投票' }[value || ''] || value || '-');
+
+export const policyStateLabel = (value?: string) =>
+  ({ ACTIVE: '生效', REVOKED: '已撤销', EXPIRED: '已过期' }[value || ''] || value || '-');

@@ -6,7 +6,18 @@ import { requestErrorMessage } from '@/modules/tee-export-approval/error';
 import { responseData, TrustChainApi } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
 
-import { blockerLabel, formatBytes, hexRows, short } from './common';
+import {
+  blockerLabel,
+  exportStateLabel,
+  formatBytes,
+  hexRows,
+  keyStateLabel,
+  kindLabel,
+  policyStateLabel,
+  short,
+  voteLabel,
+} from './common';
+import styles from './index.less';
 import type { TeeEnvironment } from './types';
 
 const { Text, Paragraph } = Typography;
@@ -19,7 +30,10 @@ const keyStateColor: Record<string, string> = {
 
 const exportStateColor: Record<string, string> = {
   EXPORTED: 'success',
+  APPROVED: 'success',
   PENDING_APPROVAL: 'processing',
+  REJECTED: 'error',
+  CANCELLED: 'default',
   NOT_EXPORTED: 'default',
 };
 
@@ -50,7 +64,7 @@ export const KeyLedgerDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="① 密钥台账" width={760} open={open} onClose={onClose}>
+    <Drawer title="密钥台账" width={760} open={open} onClose={onClose}>
       <Table
         rowKey={(row) => `${row.keyId}-${row.keyVersion}`}
         size="small"
@@ -68,7 +82,9 @@ export const KeyLedgerDrawer = ({
           {
             title: '状态',
             dataIndex: 'state',
-            render: (v: string) => <Tag color={keyStateColor[v] || 'default'}>{v}</Tag>,
+            render: (v: string) => (
+              <Tag color={keyStateColor[v] || 'default'}>{keyStateLabel(v)}</Tag>
+            ),
           },
           { title: '签发时间', dataIndex: 'issuedAt', render: formatTime },
           { title: '申领次数', dataIndex: 'claimCount' },
@@ -125,7 +141,7 @@ export const ObjectsDrawer = ({
   };
 
   return (
-    <Drawer title="② 密文资产" width={860} open={open} onClose={onClose}>
+    <Drawer title="密文资产" width={860} open={open} onClose={onClose}>
       <Table
         rowKey="objectId"
         size="small"
@@ -138,7 +154,7 @@ export const ObjectsDrawer = ({
             key: 'object',
             render: (_, row) => short(row.objectId, 18),
           },
-          { title: '类型', dataIndex: 'kind' },
+          { title: '类型', dataIndex: 'kind', render: kindLabel },
           {
             title: '密文 SHA-256',
             dataIndex: 'ciphertextSha256',
@@ -150,7 +166,13 @@ export const ObjectsDrawer = ({
             dataIndex: 'contributors',
             render: (v: string[]) => (Array.isArray(v) ? v.join('、') : '-') || '-',
           },
-          { title: '导出状态', dataIndex: 'exportState' },
+          {
+            title: '导出状态',
+            dataIndex: 'exportState',
+            render: (v: string) => (
+              <Tag color={exportStateColor[v] || 'default'}>{exportStateLabel(v)}</Tag>
+            ),
+          },
           {
             title: '操作',
             key: 'actions',
@@ -177,19 +199,7 @@ export const ObjectsDrawer = ({
                 这是中心端实际持有的字节：仅展示密文前 {preview.previewBytes} 字节（共{' '}
                 {formatBytes(preview.sizeBytes)}），不提供整体下载。
               </Paragraph>
-              <pre
-                style={{
-                  padding: 12,
-                  background: '#fafafa',
-                  border: '1px solid #f0f0f0',
-                  borderRadius: 4,
-                  fontFamily:
-                    'SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace',
-                  fontSize: 12,
-                  lineHeight: '20px',
-                  overflowX: 'auto',
-                }}
-              >
+              <pre className={styles.hexBlock}>
                 {hexRows(preview.hex || '').join('\n')}
               </pre>
             </>
@@ -230,7 +240,7 @@ export const PolicyDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="③ 规则校验" width={900} open={open} onClose={onClose}>
+    <Drawer title="规则校验" width={900} open={open} onClose={onClose}>
       <Typography.Title level={5}>授权规则</Typography.Title>
       <Table
         rowKey={(row) => `${row.policyId}-${row.policyVersion}`}
@@ -243,7 +253,13 @@ export const PolicyDrawer = ({
           { title: '可跑算子', dataIndex: 'operators', render: (v: string[]) => (v || []).join('、') || '-' },
           { title: '报告类型', dataIndex: 'reportKinds', render: (v: string[]) => (v || []).join('、') || '-' },
           { title: '有效期', dataIndex: 'expiresAt', render: formatTime },
-          { title: '状态', dataIndex: 'state', render: (v: string) => <Tag>{v}</Tag> },
+          {
+            title: '状态',
+            dataIndex: 'state',
+            render: (v: string) => (
+              <Tag color={v === 'ACTIVE' ? 'success' : 'default'}>{policyStateLabel(v)}</Tag>
+            ),
+          },
         ]}
       />
       <Typography.Title level={5} style={{ marginTop: 16 }}>
@@ -289,7 +305,7 @@ export const AttestationDrawer = ({
   environment?: TeeEnvironment;
   runtimeImageId?: string;
 }) => (
-  <Drawer title="④ 环境认证" width={640} open={open} onClose={onClose}>
+  <Drawer title="环境认证" width={640} open={open} onClose={onClose}>
     {environment ? (
       <>
         <Descriptions bordered size="small" column={1}>
@@ -373,7 +389,7 @@ export const ExportsDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="⑥ 出域管控" width={900} open={open} onClose={onClose}>
+    <Drawer title="出域管控" width={900} open={open} onClose={onClose}>
       <Table
         rowKey="exportId"
         size="small"
@@ -390,7 +406,7 @@ export const ExportsDrawer = ({
               dataSource={row.votes || []}
               columns={[
                 { title: '机构', dataIndex: 'ownerId' },
-                { title: '决定', dataIndex: 'decision' },
+                { title: '决定', dataIndex: 'decision', render: voteLabel },
                 { title: '时间', dataIndex: 'at', render: formatTime },
               ]}
             />
@@ -409,9 +425,15 @@ export const ExportsDrawer = ({
                 short(row.resultId, 16)
               ),
           },
-          { title: '类型', dataIndex: 'kind' },
+          { title: '类型', dataIndex: 'kind', render: kindLabel },
           { title: '发起机构', dataIndex: 'requesterOwnerId' },
-          { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={exportStateColor[v] || 'default'}>{v}</Tag> },
+          {
+            title: '状态',
+            dataIndex: 'status',
+            render: (v: string) => (
+              <Tag color={exportStateColor[v] || 'default'}>{exportStateLabel(v)}</Tag>
+            ),
+          },
           { title: '通过时间', dataIndex: 'approvedAt', render: formatTime },
           { title: '创建时间', dataIndex: 'gmtCreate', render: formatTime },
         ]}

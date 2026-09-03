@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { history as umiHistory, useLocation } from 'umi';
 
+import { EndRole, getEndRole } from '@/components/platform-wrapper';
 import {
   DataSandboxApi,
   DataSandboxRecord,
@@ -166,7 +167,9 @@ export const SandboxApprovalComponent = () => {
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
   const [keyword, setKeyword] = useState('');
-  const [view, setView] = useState('mine');
+  // 中心端是运营方，不会为自己的数据发起沙箱申请，只保留「待我审核」
+  const centerOnly = getEndRole() === EndRole.CENTER;
+  const [view, setView] = useState(centerOnly ? 'review' : 'mine');
   const [reviewItem, setReviewItem] = useState<DataSandboxRecord>();
   const [reviewAction, setReviewAction] = useState('');
   const [history, setHistory] = useState<DataSandboxRecord[]>([]);
@@ -238,17 +241,23 @@ export const SandboxApprovalComponent = () => {
   return (
     <MvpPage
       title="项目资源审核"
-      description="查看我的申请进度，并审核其他项目节点提交的沙箱或数据资源申请"
+      description={
+        centerOnly
+          ? '作为可信执行方审核沙箱与数据资源申请：是否为该申请分配算力、拉起容器、挂载对应的密文数据'
+          : '查看我的申请进度，并审核其他项目节点提交的沙箱或数据资源申请'
+      }
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >
-      <Tabs
-        activeKey={view}
-        onChange={setView}
-        items={[
-          { key: 'mine', label: '我的申请' },
-          { key: 'review', label: '待我审核' },
-        ]}
-      />
+      {!centerOnly && (
+        <Tabs
+          activeKey={view}
+          onChange={setView}
+          items={[
+            { key: 'mine', label: '我的申请' },
+            { key: 'review', label: '待我审核' },
+          ]}
+        />
+      )}
       <Space style={{ marginBottom: 16 }}>
         <Select
           value={status}

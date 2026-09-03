@@ -1,4 +1,4 @@
-import { Space, Tag, Typography, message } from 'antd';
+import { Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 import { EndRoleBadge } from '@/components/end-role-badge';
@@ -20,8 +20,6 @@ import { TasksDrawer } from './receipt-card';
 import type { Segment, SegmentKey, TrustChainSummary } from './types';
 
 const { Text } = Typography;
-
-const circledNumber = ['①', '②', '③', '④', '⑤', '⑥'];
 
 export const TrustChainComponent = () => {
   const endRole = getEndRole();
@@ -69,77 +67,101 @@ export const TrustChainComponent = () => {
       onRetry={refresh}
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >
-      {/* 顶部状态条 */}
+      {/* 顶部状态条：本端身份与底座状态一行读完 */}
       <div className={styles.statusBar}>
-        <Space size="large" wrap>
-          {endRole && <EndRoleBadge endRole={endRole} />}
-          {summary?.ownerName && (
-            <span>
-              本机构：<Text strong>{summary.ownerName}</Text>
+        {endRole && (
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>本端</span>
+            <span className={styles.statusValue}>
+              <EndRoleBadge endRole={endRole} />
             </span>
-          )}
-          {teeExecSegment && (
-            <span>
-              TEE 域在线：
-              <Tag color={stateColor[teeExecSegment.state]}>
+          </div>
+        )}
+        {summary?.ownerName && (
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>本机构</span>
+            <span className={styles.statusValue}>{summary.ownerName}</span>
+          </div>
+        )}
+        {teeExecSegment && (
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>TEE 域</span>
+            <span className={styles.statusValue}>
+              <Tag color={stateColor[teeExecSegment.state]} style={{ marginInlineEnd: 0 }}>
                 {stateLabel[teeExecSegment.state]}
               </Tag>
             </span>
-          )}
-          <span>
-            密钥服务：
-            <Tag color={summary?.environment?.keyServiceReachable ? 'success' : 'default'}>
+          </div>
+        )}
+        <div className={styles.statusItem}>
+          <span className={styles.statusLabel}>密钥服务</span>
+          <span className={styles.statusValue}>
+            <Tag
+              color={summary?.environment?.keyServiceReachable ? 'success' : 'default'}
+              style={{ marginInlineEnd: 0 }}
+            >
               {summary?.environment
                 ? summary.environment.keyServiceReachable
                   ? '已连通'
                   : '未连通'
-                : '-'}
+                : '—'}
             </Tag>
           </span>
-          <span>
-            环境：
-            <Text strong>
-              {summary?.environment?.runtimeMode === 'SIMULATION'
-                ? '仿真，无硬件度量'
-                : summary?.environment?.runtimeMode || '-'}
-            </Text>
+        </div>
+        <div className={styles.statusItem}>
+          <span className={styles.statusLabel}>执行环境</span>
+          <span className={styles.statusValue}>
+            {summary?.environment?.runtimeMode === 'SIMULATION'
+              ? '仿真 · 无硬件度量'
+              : summary?.environment?.runtimeMode || '—'}
           </span>
-          <span>
-            生效密钥数：<Text strong>{keyIssueCount ?? '-'}</Text>
-          </span>
-          {/* 客户端不运行 TEE 容器，没有运行镜像，这一项就不占位 */}
-          {summary?.runtimeImageId && (
-            <span>
-              运行镜像：
-              <Text copyable={{ text: summary.runtimeImageId }}>
-                {short(summary.runtimeImageId, 24)}
+        </div>
+        <div className={styles.statusItem}>
+          <span className={styles.statusLabel}>生效密钥</span>
+          <span className={styles.statusValue}>{keyIssueCount ?? '—'}</span>
+        </div>
+        {/* 客户端不运行 TEE 容器，没有运行镜像，这一项就不占位 */}
+        {summary?.runtimeImageId && (
+          <div className={styles.statusItem}>
+            <span className={styles.statusLabel}>运行镜像</span>
+            <span className={styles.statusValue}>
+              <Text copyable={{ text: summary.runtimeImageId }} style={{ fontWeight: 600 }}>
+                {short(summary.runtimeImageId, 20)}
               </Text>
             </span>
-          )}
-        </Space>
+          </div>
+        )}
       </div>
 
-      {/* 六段链路图（客户端只返回四段，按数组位置编号） */}
+      {/* 链路：中心端六段、客户端四段，段号按实际返回顺序生成 */}
+      <div className={styles.chainHint}>点击任一段查看该段的明细台账</div>
       <div className={styles.chain}>
         {segments.map((segment, index) => (
           <div
             key={segment.key}
             className={styles.segmentCard}
+            role="button"
+            tabIndex={0}
             onClick={() => setOpenDrawer(segment.key)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') setOpenDrawer(segment.key);
+            }}
           >
             <div className={styles.segmentHeader}>
-              <span className={styles.segmentIndex}>{circledNumber[index] || index + 1}</span>
-              <span
-                className={styles.segmentDot}
-                style={{ background: stateColor[segment.state] }}
-              />
+              <span className={styles.segmentIndex}>{index + 1}</span>
               <span className={styles.segmentLabel}>{segment.label}</span>
+              <Tooltip title={stateLabel[segment.state]}>
+                <span
+                  className={styles.segmentDot}
+                  style={{ background: stateColor[segment.state] }}
+                />
+              </Tooltip>
             </div>
             <div className={styles.segmentMetrics}>
               {segment.metrics.map((item) => (
                 <div key={item.label} className={styles.segmentMetric}>
-                  <Text type="secondary">{item.label}</Text>
-                  <Text strong>{item.value}</Text>
+                  <span className={styles.metricValue}>{item.value}</span>
+                  <span className={styles.metricLabel}>{item.label}</span>
                 </div>
               ))}
             </div>
