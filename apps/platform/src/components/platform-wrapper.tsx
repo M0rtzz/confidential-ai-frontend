@@ -40,22 +40,31 @@ export enum Platform {
   'AUTONOMY' = 'AUTONOMY',
 }
 
+/** TEE 场景下的端身份：由部署决定，界面只标注、不提供切换 */
+export enum EndRole {
+  'CENTER' = 'CENTER',
+  'CLIENT' = 'CLIENT',
+}
+
 type AccessType = {
   type?: Platform[];
   mode?: PadMode[];
+  end?: EndRole[];
 };
 
 /**
- * 判断当前平台类型和部署类型
+ * 判断当前平台类型、部署类型和端身份
  * @param accessType
  * @param accessType.type - 平台类型  可以是 [Platform.AUTONOMY | Platform.CENTER | Platform.EDGE]
  * @param accessType.mode - 部署类型  可以是 [PadMode['ALL-IN-ONE'] | PadMode.MPC | PadMode.TEE]
+ * @param accessType.end - 端身份 可以是 [EndRole.CENTER | EndRole.CLIENT]，不声明则不限制
  * @returns boolean
  */
 export const hasAccess = (accessType: AccessType) => {
   const {
     type = [Platform.AUTONOMY, Platform.CENTER, Platform.EDGE],
     mode = [PadMode['ALL-IN-ONE'], PadMode.MPC, PadMode.TEE],
+    end,
   } = accessType;
   const loginService = getModel(LoginService);
   if (!loginService.userInfo?.deployMode) return false;
@@ -64,7 +73,15 @@ export const hasAccess = (accessType: AccessType) => {
   const deployMode = loginService.userInfo.deployMode;
   const platformType = loginService.userInfo.platformType;
 
+  if (end && !end.includes(loginService.userInfo.endRole as EndRole)) return false;
+
   return type.includes(platformType) && mode.includes(deployMode);
+};
+
+/** 取当前实例的端身份（CENTER / CLIENT），登录前或未声明时返回 undefined */
+export const getEndRole = () => {
+  const loginService = getModel(LoginService);
+  return loginService.userInfo?.endRole;
 };
 
 /**

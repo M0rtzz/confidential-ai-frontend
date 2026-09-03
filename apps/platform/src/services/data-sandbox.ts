@@ -1,5 +1,7 @@
 import request from 'umi-request';
 
+import type { EndRole } from '@/components/platform-wrapper';
+
 const traceId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 export type DataSandboxResponse<T = unknown> = {
@@ -661,6 +663,46 @@ export const TeeExportApi = {
       fileName: match ? match[1] : `${exportId}.bin`,
     };
   },
+};
+
+// 免登录接口：实例端身份标注，登录页展示用
+export const DataSandboxInstanceApi = {
+  instance: () =>
+    request<
+      DataSandboxResponse<{
+        endRole: EndRole;
+        instanceName: string;
+        contractVersion: string;
+      }>
+    >(`${base}/instance`, { method: 'GET' }),
+};
+
+// P8 可信执行链路：只读接口，展示密钥/加密/规则/认证/执行/出域六段链路
+const trustChainBase = `${base}/trust-chain`;
+const trustChainGet = <T>(path: string, params?: Record<string, any>) =>
+  request<DataSandboxResponse<T>>(`${trustChainBase}${path}`, {
+    method: 'GET',
+    params,
+    credentials: 'include',
+    headers: {
+      'User-Token': localStorage.getItem('User-Token') || '',
+      'Trace-Id': traceId(),
+    },
+  });
+
+export const TrustChainApi = {
+  summary: () => trustChainGet<DataSandboxRecord>('/summary'),
+  keys: () => trustChainGet<DataSandboxRecord>('/keys'),
+  policies: () => trustChainGet<DataSandboxRecord>('/policies'),
+  objects: () => trustChainGet<DataSandboxRecord>('/objects'),
+  objectPreview: (objectId: string) =>
+    trustChainGet<DataSandboxRecord>(`/objects/${objectId}/preview`),
+  tasks: (limit = 50) => trustChainGet<DataSandboxRecord>('/tasks', { limit }),
+  taskReceipt: (taskId: string) =>
+    trustChainGet<DataSandboxRecord>(`/tasks/${taskId}/receipt`),
+  exports: () => trustChainGet<DataSandboxRecord>('/exports'),
+  peer: () => trustChainGet<DataSandboxRecord>('/peer'),
+  unbindCheck: () => trustChainGet<DataSandboxRecord>('/unbind-check'),
 };
 
 export const responseData = <T>(response: DataSandboxResponse<T>, fallback: T): T => {

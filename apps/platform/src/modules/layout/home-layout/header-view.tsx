@@ -17,6 +17,7 @@ import edgeImgLink from '@/assets/edge.png';
 import hustnlpLogo from '@/assets/hustnlp-logo.png';
 import fallbackLink from '@/assets/offline-user.png';
 import { EdgeAuthWrapper } from '@/components/edge-wrapper-auth';
+import { EndRoleBadge } from '@/components/end-role-badge';
 import { hasAccess, Platform } from '@/components/platform-wrapper';
 import { GuideTourService } from '@/modules/guide-tour/guide-tour-service';
 import { ChangePasswordModal } from '@/modules/login/component/change-password';
@@ -217,6 +218,11 @@ export const HeaderComponent = () => {
           </div>
         }
         <span className={styles.subTitle}>{layoutService.subTitle}</span>
+        {loginService.userInfo?.endRole && (
+          <span className={styles.endRoleBadge}>
+            <EndRoleBadge endRole={loginService.userInfo.endRole} size="small" />
+          </span>
+        )}
         {viewInstance.showMyNode(pathname) && (
           <>
             <span className={styles.line} />

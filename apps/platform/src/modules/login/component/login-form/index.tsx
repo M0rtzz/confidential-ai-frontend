@@ -1,5 +1,9 @@
 import { Form, Typography, Button, Input } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+import { EndRoleBadge } from '@/components/end-role-badge';
+import type { EndRole } from '@/components/platform-wrapper';
+import { DataSandboxInstanceApi } from '@/services/data-sandbox';
 
 import styles from './index.less';
 
@@ -13,6 +17,19 @@ export const LoginForm = (props: {
 }) => {
   const { Title } = Typography;
   const [loginState, setLoginState] = useState(false);
+  const [instance, setInstance] = useState<{
+    endRole?: EndRole;
+    instanceName?: string;
+  }>({});
+
+  useEffect(() => {
+    // 免登录接口，失败不阻塞登录，只是不显示端身份徽标
+    DataSandboxInstanceApi.instance()
+      .then((res) => {
+        if (res.status?.code === 0 && res.data) setInstance(res.data);
+      })
+      .catch(() => {});
+  }, []);
 
   const onFinish = async (values: UserInfo) => {
     setLoginState(true);
@@ -22,6 +39,15 @@ export const LoginForm = (props: {
 
   return (
     <div className={styles.loginForm}>
+      {instance.endRole && (
+        <div className={styles.endRoleNotice}>
+          <EndRoleBadge
+            endRole={instance.endRole}
+            instanceName={instance.instanceName}
+          />
+          <div className={styles.endRoleHint}>端由部署决定，界面不提供切换</div>
+        </div>
+      )}
       <Title level={3} className={styles.title}>
         数据沙箱登录
       </Title>

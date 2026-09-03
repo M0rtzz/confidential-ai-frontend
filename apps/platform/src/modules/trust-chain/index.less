@@ -1,0 +1,93 @@
+.statusBar {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.segmentCard {
+  min-width: 180px;
+  flex: 1 1 180px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, border-color 0.2s;
+
+  &:hover {
+    border-color: #1677ff;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  }
+}
+
+.segmentHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.segmentIndex {
+  margin-right: 6px;
+  color: rgb(0 0 0 / 45%);
+  font-weight: 600;
+}
+
+.segmentDot {
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+.segmentLabel {
+  font-weight: 500;
+}
+
+.segmentMetrics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.segmentMetric {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.demoDeck {
+  margin-top: 8px;
+}
+
+.demoCard {
+  height: 100%;
+  margin-bottom: 16px;
+}
+
+// 打印可信执行回执卡时让其单独成页，屏蔽页面其余部分
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .receiptPrintArea,
+  .receiptPrintArea * {
+    visibility: visible;
+  }
+
+  .receiptPrintArea {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

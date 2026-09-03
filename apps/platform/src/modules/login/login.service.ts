@@ -1,7 +1,7 @@
 import { message } from 'antd';
 import sha256 from 'crypto-js/sha256';
 
-import type { PadMode, Platform } from '@/components/platform-wrapper';
+import type { EndRole, PadMode, Platform } from '@/components/platform-wrapper';
 import API from '@/services/secretpad';
 import { listNode } from '@/services/secretpad/InstController';
 import { updatePwd } from '@/services/secretpad/UserController';
@@ -72,6 +72,7 @@ export interface User {
   ownerType: 'CENTER' | 'EDGE'; // 宿主类型
   ownerId: string; // 	NODE的话这里存nodeId
   deployMode: PadMode; // 'ALL-IN-ONE' | 'MPC' | 'TEE';
+  endRole?: EndRole; // TEE 端身份：'CENTER' | 'CLIENT'，由部署决定
 }
 export interface UserInfo {
   user: User | null;

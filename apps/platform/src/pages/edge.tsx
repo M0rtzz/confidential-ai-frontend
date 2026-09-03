@@ -9,6 +9,7 @@ import {
   ExportOutlined,
   FileSearchOutlined,
   IdcardOutlined,
+  NodeIndexOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -21,11 +22,12 @@ import { ReactComponent as DataManager } from '@/assets/jiaochabiao.svg';
 import { ReactComponent as CooperativeNode } from '@/assets/join-node.svg';
 import { ReactComponent as projectManager } from '@/assets/project-manager.svg';
 import { ReactComponent as Workbench } from '@/assets/workbench.svg';
-import { hasAccess, Platform } from '@/components/platform-wrapper';
+import { EndRole, hasAccess, Platform } from '@/components/platform-wrapper';
 import { CooperativeNodeListComponent } from '@/modules/cooperative-node-list';
 import { DataCatalogComponent } from '@/modules/data-catalog';
 import { HomeLayout } from '@/modules/layout/home-layout';
 import { HomeLayoutService } from '@/modules/layout/home-layout/home-layout.service';
+import { LoginService } from '@/modules/login/login.service';
 import { ManagementLayoutComponent } from '@/modules/layout/management-layout';
 import { MessageService } from '@/modules/message-center/message.service';
 import { NodeService } from '@/modules/node';
@@ -83,6 +85,11 @@ const UnifiedLogComponent = lazy(() =>
     default: Component,
   })),
 );
+const TrustChainComponent = lazy(() =>
+  import('@/modules/trust-chain').then(({ TrustChainComponent: Component }) => ({
+    default: Component,
+  })),
+);
 const UserManagementComponent = lazy(() =>
   import('@/modules/system-management').then(
     ({ UserManagementComponent: Component }) => ({
@@ -104,13 +111,19 @@ const TenantManagementComponent = lazy(() =>
     }),
   ),
 );
-const menuItems: {
+type EdgeMenuItem = {
   label: string;
   icon: React.ReactNode;
   component?: React.ReactNode;
   key: string;
-  children?: any[];
-}[] = [
+  /** 按端身份过滤菜单项；不声明则两端都展示 */
+  ends?: EndRole[];
+  /** 客户端下替换显示的标题；不声明则两端同名 */
+  clientLabel?: string;
+  children?: EdgeMenuItem[];
+};
+
+const menuItems: EdgeMenuItem[] = [
   {
     label: '工作台',
     icon: <Icon component={Workbench} />,
@@ -139,6 +152,7 @@ const menuItems: {
         key: 'data-governance',
         icon: <DeploymentUnitOutlined />,
         component: <DataGovernanceComponent />,
+        ends: [EndRole.CLIENT],
       },
     ],
   },
@@ -166,12 +180,21 @@ const menuItems: {
     icon: <CalculatorOutlined />,
     key: 'data-compute',
     component: <DataComputeEntryComponent />,
+    ends: [EndRole.CENTER],
   },
   {
     label: '合作节点',
+    // 客户端只连接唯一的中心端，渲染时标题改为「中心端连接」
+    clientLabel: '中心端连接',
     icon: <Icon component={CooperativeNode} />,
     component: <CooperativeNodeListComponent />,
     key: 'connected-node',
+  },
+  {
+    label: '可信执行链路',
+    icon: <NodeIndexOutlined />,
+    component: <TrustChainComponent />,
+    key: 'trust-chain',
   },
   {
     label: '模型审批',
@@ -184,6 +207,7 @@ const menuItems: {
     icon: <ExportOutlined />,
     component: <TeeExportApprovalComponent />,
     key: 'tee-export-approval',
+    ends: [EndRole.CLIENT],
   },
   {
     label: '统一日志',
@@ -217,10 +241,30 @@ const menuItems: {
     ],
   },
 ];
+/**
+ * 按端身份过滤菜单并按端改写标题；一级项若全部子项都被过滤掉，一级项也不展示。
+ * 端身份未就绪时先不展示按端限定的菜单，避免闪出不属于本端的入口。
+ */
+const filterMenuItemsByEnd = (
+  items: EdgeMenuItem[],
+  endRole?: EndRole,
+): EdgeMenuItem[] =>
+  items
+    .filter((item) => !item.ends || (endRole && item.ends.includes(endRole)))
+    .map((item) => {
+      const label =
+        endRole === EndRole.CLIENT && item.clientLabel ? item.clientLabel : item.label;
+      return item.children
+        ? { ...item, label, children: filterMenuItemsByEnd(item.children, endRole) }
+        : { ...item, label };
+    })
+    .filter((item) => !item.children || item.children.length > 0);
+
 const EdgePage = () => {
   const { search } = useLocation();
   const { ownerId, tab, sandboxId } = parse(search);
   const homeLayoutService = useModel(HomeLayoutService);
+  const loginService = useModel(LoginService);
   const messageService = useModel(MessageService);
   const nodeService = useModel(NodeService);
 
@@ -269,7 +313,10 @@ const EdgePage = () => {
       {tab === 'data-compute' && sandboxId ? (
         <SandboxWorkspaceComponent />
       ) : (
-        <ManagementLayoutComponent menuItems={menuItems} defaultTabKey={'my-project'} />
+        <ManagementLayoutComponent
+          menuItems={filterMenuItemsByEnd(menuItems, loginService.userInfo?.endRole)}
+          defaultTabKey={'my-project'}
+        />
       )}
     </HomeLayout>
   );

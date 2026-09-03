@@ -9,7 +9,13 @@ import type { FilterValue } from 'antd/es/table/interface';
 import { parse } from 'query-string';
 import { useEffect, type ChangeEvent } from 'react';
 
-import { AccessWrapper, hasAccess, Platform } from '@/components/platform-wrapper';
+import {
+  AccessWrapper,
+  EndRole,
+  getEndRole,
+  hasAccess,
+  Platform,
+} from '@/components/platform-wrapper';
 import { page as requestList } from '@/services/secretpad/NodeRouteController';
 import { getModel, Model, useModel } from '@/util/valtio-helper';
 
@@ -23,9 +29,18 @@ import { CooperativeNodeService } from './cooperative-node.service';
 import { DeleteCooperativeNodeModal } from './delete-modal';
 import { EditCooperativeNodeModal } from './edit-modal';
 import styles from './index.less';
+import { PeerConnectionComponent } from './peer-connection';
 import { useLocation } from 'umi';
 
 export const CooperativeNodeListComponent = () => {
+  // 客户端只连接唯一的中心端，页面替换为「中心端连接」单条展示
+  if (getEndRole() === EndRole.CLIENT) {
+    return <PeerConnectionComponent />;
+  }
+  return <CooperativeNodeListTable />;
+};
+
+const CooperativeNodeListTable = () => {
   const viewInstance = useModel(CooperativeNodeView);
   const service = useModel(CooperativeNodeService);
   const isAutonomyMode = hasAccess({ type: [Platform.AUTONOMY] });
