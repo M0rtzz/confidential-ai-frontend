@@ -144,7 +144,7 @@ export const PeerConnectionComponent = () => {
                       </Tag>
                       {route.srcNodeId} → {route.dstNodeId}
                       <Text type="secondary" style={{ marginLeft: 8 }}>
-                        {route.direction === 'OUTBOUND' ? '本端发起' : '对端发起'}
+                        {route.direction === 'OUTBOUND' ? '出向' : '入向'}
                       </Text>
                     </span>
                   ))}
