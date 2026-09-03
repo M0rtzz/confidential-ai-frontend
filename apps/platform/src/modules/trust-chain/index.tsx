@@ -119,12 +119,15 @@ export const TrustChainComponent = () => {
           <span>
             生效密钥数：<Text strong>{keyIssueCount ?? '-'}</Text>
           </span>
-          <span>
-            运行镜像：
-            <Text copyable={summary ? { text: summary.runtimeImageId } : false}>
-              {summary ? short(summary.runtimeImageId, 24) : '-'}
-            </Text>
-          </span>
+          {/* 客户端不运行 TEE 容器，没有运行镜像，这一项就不占位 */}
+          {summary?.runtimeImageId && (
+            <span>
+              运行镜像：
+              <Text copyable={{ text: summary.runtimeImageId }}>
+                {short(summary.runtimeImageId, 24)}
+              </Text>
+            </span>
+          )}
         </Space>
       </div>
 

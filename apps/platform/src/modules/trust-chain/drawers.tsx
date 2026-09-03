@@ -312,7 +312,11 @@ export const AttestationDrawer = ({
             {formatTime(environment.checkedAt)}
           </Descriptions.Item>
           <Descriptions.Item label="运行镜像摘要">
-            <Text copyable={{ text: runtimeImageId }}>{short(runtimeImageId, 28)}</Text>
+            {runtimeImageId ? (
+              <Text copyable={{ text: runtimeImageId }}>{short(runtimeImageId, 28)}</Text>
+            ) : (
+              <Text type="secondary">本端不运行 TEE 容器</Text>
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="阻塞项">
             {environment.blockers.length ? (
