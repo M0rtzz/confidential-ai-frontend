@@ -41,11 +41,7 @@ export const LoginForm = (props: {
     <div className={styles.loginForm}>
       {instance.endRole && (
         <div className={styles.endRoleNotice}>
-          <EndRoleBadge
-            endRole={instance.endRole}
-            instanceName={instance.instanceName}
-          />
-          <div className={styles.endRoleHint}>端由部署决定，界面不提供切换</div>
+          <EndRoleBadge endRole={instance.endRole} instanceName={instance.instanceName} />
         </div>
       )}
       <Title level={3} className={styles.title}>

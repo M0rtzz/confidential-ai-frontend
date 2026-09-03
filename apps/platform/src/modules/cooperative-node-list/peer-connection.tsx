@@ -1,4 +1,4 @@
-import { Alert, Button, Descriptions, Empty, Input, Modal, Space, Tag, message } from 'antd';
+import { Alert, Button, Descriptions, Empty, Input, Modal, Space, Tag, Typography, message } from 'antd';
 import { parse } from 'query-string';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'umi';
@@ -14,6 +14,12 @@ import type { DataSandboxRecord } from '@/services/data-sandbox';
 
 import { AddCooperativeNodeDrawer } from './add-cooperative-node-modal';
 import styles from './index.less';
+
+const { Text } = Typography;
+
+/** Kuscia 判定的路由状态；只有 Succeeded 才是真正打通。 */
+const routeStatusLabel = (status?: string) =>
+  ({ Succeeded: '已连通', Pending: '建立中', Failed: '失败' }[status || ''] || '未知');
 
 /**
  * 客户端「中心端连接」：单条记录展示与既有的合作节点表格无关，
@@ -128,15 +134,24 @@ export const PeerConnectionComponent = () => {
             <Descriptions.Item label="证书指纹" span={2}>
               {peer?.certSha256 || '-'}
             </Descriptions.Item>
-            <Descriptions.Item label="节点路由 · 出向">
-              <Tag color={peer?.routeOutboundReady ? 'success' : 'error'}>
-                {peer?.routeOutboundReady ? '就绪' : '未就绪'}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="节点路由 · 入向">
-              <Tag color={peer?.routeInboundReady ? 'success' : 'error'}>
-                {peer?.routeInboundReady ? '就绪' : '未就绪'}
-              </Tag>
+            <Descriptions.Item label="节点路由" span={2}>
+              {(peer?.routes || []).length ? (
+                <Space direction="vertical" size={2}>
+                  {(peer?.routes || []).map((route: DataSandboxRecord) => (
+                    <span key={`${route.srcNodeId}-${route.dstNodeId}`}>
+                      <Tag color={route.status === 'Succeeded' ? 'success' : 'warning'}>
+                        {routeStatusLabel(route.status)}
+                      </Tag>
+                      {route.srcNodeId} → {route.dstNodeId}
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        {route.direction === 'OUTBOUND' ? '本端发起' : '对端发起'}
+                      </Text>
+                    </span>
+                  ))}
+                </Space>
+              ) : (
+                <Text type="secondary">未登记</Text>
+              )}
             </Descriptions.Item>
             <Descriptions.Item label="契约通道">
               <Tag
@@ -163,7 +178,7 @@ export const PeerConnectionComponent = () => {
             showIcon
             type="info"
             style={{ marginTop: 12 }}
-            message="节点路由是 Kuscia 数据面，用于计算任务的数据通信；契约通道是平台间双向 TLS 的契约面，密钥申请、规则登记与出域信封均走契约通道。"
+            message="节点路由是 Kuscia 数据面，用于计算任务的数据通信；契约通道是平台间双向 TLS 的契约面，密钥申请、规则登记与出域信封均走契约通道。每个平台只登记自己创建的那条路由，状态取自 Kuscia 的实际判定。"
           />
           <div style={{ marginTop: 16 }}>
             <Button danger loading={checkLoading} onClick={startUnbind}>
