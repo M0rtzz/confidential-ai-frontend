@@ -19,6 +19,7 @@ import {
   Tabs,
   Tag,
   Tooltip,
+  Typography,
   Upload,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -27,6 +28,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'umi';
 
 import { formatTime, MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
+import { LoginService } from '@/modules/login/login.service';
 import { requestErrorMessage } from '@/modules/tee-export-approval/error';
 import {
   DataComputeApi,
@@ -35,6 +37,7 @@ import {
   responseData,
 } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
+import { useModel } from '@/util/valtio-helper';
 
 const artifactTypeLabels: Record<string, string> = {
   JAR: 'JAR 制品',
@@ -123,6 +126,8 @@ const renderPreviewTable = (preview: DataSandboxRecord, showRowCount = true) => 
 
 /** P6 已验签结果的 P7 展示：密文只展示元数据，REPORT 直接展示明文内容。 */
 const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
+  const loginService = useModel(LoginService);
+  const canRequestExport = loginService.userInfo?.endRole === 'CLIENT';
   let summary: DataSandboxRecord = {};
   let parseError = false;
   try {
@@ -200,9 +205,17 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
               message="TEE 结果为密文对象，导出审批完成前不提供明文预览。"
               style={{ margin: '12px 0' }}
             />
-            <Button type="primary" onClick={() => requestExport(item.resultId)}>
-              申请导出
-            </Button>
+            {canRequestExport ? (
+              <Button type="primary" onClick={() => requestExport(item.resultId)}>
+                申请导出
+              </Button>
+            ) : (
+              <Tooltip title="中心端只负责可信计算与审批裁决。请由任一贡献机构在客户端的“结果导出审批”中发起申请。">
+                <span>
+                  <Button disabled>请在贡献机构客户端申请导出</Button>
+                </span>
+              </Tooltip>
+            )}
           </Card>
         );
       })}
@@ -989,7 +1002,17 @@ export const DataDevComponent = () => {
                       loading={controlLoading}
                       dataSource={resultControls}
                       columns={[
-                        { title: '开发结果', dataIndex: 'name' },
+                        {
+                          title: '开发结果',
+                          dataIndex: 'name',
+                          render: (value: string, row: DataSandboxRecord) => (
+                            <Space>
+                              <span>{value}</span>
+                              {row.tee_encrypted && <Tag color="purple">TEE 密文</Tag>}
+                              {row.tee_report && <Tag color="green">明文报告</Tag>}
+                            </Space>
+                          ),
+                        },
                         {
                           title: '任务名称',
                           dataIndex: 'task_name',
@@ -999,38 +1022,58 @@ export const DataDevComponent = () => {
                         {
                           title: '查看截止时间',
                           dataIndex: 'view_until',
-                          render: (value: string) => formatTime(value),
+                          render: (value: string, row: DataSandboxRecord) =>
+                            row.tee_encrypted
+                              ? '密文不可预览'
+                              : row.tee_report
+                              ? '按输出规则可查看'
+                              : formatTime(value),
                         },
                         {
-                          title: '是否允许导出',
+                          title: '权限方式',
                           dataIndex: 'allow_export',
-                          render: (value: boolean) => (
-                            <Tag color={value ? 'success' : 'default'}>
-                              {value ? '是' : '否'}
-                            </Tag>
-                          ),
+                          render: (value: boolean, row: DataSandboxRecord) =>
+                            row.tee_encrypted ? (
+                              <Space direction="vertical" size={0}>
+                                <Tag color="processing">贡献机构多方审批</Tag>
+                                <span>{row.exportState || 'PENDING_APPROVAL'}</span>
+                              </Space>
+                            ) : row.tee_report ? (
+                              <Tag color="success">输出规则已授权</Tag>
+                            ) : (
+                              <Tag color={value ? 'success' : 'default'}>
+                                {value ? '允许导出' : '禁止导出'}
+                              </Tag>
+                            ),
                         },
                         {
                           title: '操作',
-                          render: (_: unknown, row: DataSandboxRecord) => (
-                            <Button
-                              type="link"
-                              onClick={() => {
-                                setControlItem(row);
-                                controlForm.setFieldsValue({
-                                  viewUntil: row.view_until
-                                    ? dayjs(row.view_until)
-                                    : undefined,
-                                  allowExport: !!row.allow_export,
-                                  exportUntil: row.export_until
-                                    ? dayjs(row.export_until)
-                                    : undefined,
-                                });
-                              }}
-                            >
-                              设置权限
-                            </Button>
-                          ),
+                          render: (_: unknown, row: DataSandboxRecord) =>
+                            row.tee_encrypted || row.tee_report ? (
+                              <Typography.Text type="secondary">
+                                {row.tee_encrypted
+                                  ? '由导出审批管理'
+                                  : '由输出规则管理'}
+                              </Typography.Text>
+                            ) : (
+                              <Button
+                                type="link"
+                                onClick={() => {
+                                  setControlItem(row);
+                                  controlForm.setFieldsValue({
+                                    viewUntil: row.view_until
+                                      ? dayjs(row.view_until)
+                                      : undefined,
+                                    allowExport: !!row.allow_export,
+                                    exportUntil: row.export_until
+                                      ? dayjs(row.export_until)
+                                      : undefined,
+                                  });
+                                }}
+                              >
+                                设置权限
+                              </Button>
+                            ),
                         },
                       ]}
                     />
