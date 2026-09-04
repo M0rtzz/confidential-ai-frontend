@@ -46,20 +46,23 @@
   line-height: 1.2;
 }
 
+// 六段链路始终排成一行，宽度不足时整条横向滚动，避免最后一段单独换行
 .chain {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: stretch;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 4px;
+  overflow-x: auto;
 }
 
 .segmentCard {
   position: relative;
   display: flex;
-  flex: 1 1 190px;
+  flex: 1 1 0;
   flex-direction: column;
-  min-width: 190px;
+  min-width: 158px;
   padding: 14px 16px 12px;
   background: #fff;
   border: 1px solid #ebedf0;
@@ -135,7 +138,7 @@
 .segmentMetrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 20px;
+  gap: 4px 18px;
 }
 
 .segmentMetric {
@@ -147,7 +150,7 @@
 .metricValue {
   color: rgb(0 0 0 / 88%);
   font-weight: 600;
-  font-size: 20px;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
@@ -165,10 +168,6 @@
 }
 
 @media (max-width: 900px) {
-  .segmentCard:not(:last-child)::after {
-    content: none;
-  }
-
   .statusItem {
     padding-left: 0;
     border-left: none;
@@ -204,4 +203,53 @@
     left: 0;
     width: 100%;
   }
+}
+
+// 链路下方的常驻信息面板：把环境与底座的判定摊开，避免页面下半部大片留白
+.infoPanel {
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #ebedf0;
+  border-radius: 8px;
+}
+
+.infoTitle {
+  margin-bottom: 14px;
+  color: rgb(0 0 0 / 88%);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px 24px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.infoLabel {
+  color: rgb(0 0 0 / 45%);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.infoValue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  color: rgb(0 0 0 / 88%);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  word-break: break-all;
+}
+
+.infoBlockers {
+  margin-top: 14px;
 }

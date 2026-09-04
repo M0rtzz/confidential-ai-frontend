@@ -167,9 +167,9 @@ export const SandboxApprovalComponent = () => {
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
   const [keyword, setKeyword] = useState('');
-  // 中心端是运营方，不会为自己的数据发起沙箱申请，只保留「待我审核」
+  // 中心端是运营方：沙箱由它发起、由供数客户端投票，两个视角都要保留
   const centerOnly = getEndRole() === EndRole.CENTER;
-  const [view, setView] = useState(centerOnly ? 'review' : 'mine');
+  const [view, setView] = useState('mine');
   const [reviewItem, setReviewItem] = useState<DataSandboxRecord>();
   const [reviewAction, setReviewAction] = useState('');
   const [history, setHistory] = useState<DataSandboxRecord[]>([]);
@@ -243,21 +243,19 @@ export const SandboxApprovalComponent = () => {
       title="项目资源审核"
       description={
         centerOnly
-          ? '作为可信执行方审核沙箱与数据资源申请：是否为该申请分配算力、拉起容器、挂载对应的密文数据'
+          ? '作为可信执行方发起沙箱与数据资源申请，交由供数客户端投票；通过后由本端分配算力、拉起容器并挂载密文数据'
           : '查看我的申请进度，并审核其他项目节点提交的沙箱或数据资源申请'
       }
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >
-      {!centerOnly && (
-        <Tabs
-          activeKey={view}
-          onChange={setView}
-          items={[
-            { key: 'mine', label: '我的申请' },
-            { key: 'review', label: '待我审核' },
-          ]}
-        />
-      )}
+      <Tabs
+        activeKey={view}
+        onChange={setView}
+        items={[
+          { key: 'mine', label: centerOnly ? '我发起的申请' : '我的申请' },
+          { key: 'review', label: '待我审核' },
+        ]}
+      />
       <Space style={{ marginBottom: 16 }}>
         <Select
           value={status}

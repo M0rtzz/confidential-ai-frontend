@@ -22,7 +22,7 @@ export default {
     showTemplate: true, // 创建项目时是否显示模板选项
   },
   home: {
-    HomePageTitle: `${time}好👋，欢迎来到数据沙箱`,
+    HomePageTitle: `${time}好👋，欢迎来到密态计算平台`,
   },
   guide: true, //
 };

@@ -72,7 +72,7 @@ const NodePage = () => {
         }
       }
     };
-    homeLayoutService.setSubTitle('数据沙箱');
+    homeLayoutService.setSubTitle('密态计算');
     getNodeList();
     // 获取未处理消息数量
     getMessageTotal();

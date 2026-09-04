@@ -63,6 +63,16 @@ const sandboxListUrl = () => {
   return `/edge?${current.toString()}`;
 };
 
+/** 沙箱列表页地址：项目下没有沙箱时，从数据计算直接跳过去提交申请 */
+const sandboxListPageUrl = () => {
+  const current = new URLSearchParams(window.location.search);
+  current.set('tab', 'sandbox-resource-application');
+  current.delete('sandboxId');
+  current.delete('projectId');
+  current.delete('workspace');
+  return `/edge?${current.toString()}`;
+};
+
 const workspaceUrl = (workspace: string, context: DataSandboxRecord) => {
   const current = new URLSearchParams(window.location.search);
   current.set('tab', 'data-compute');
@@ -142,6 +152,16 @@ export const DataComputeHomeComponent = () => {
             title={project.name}
             style={{ marginBottom: 16 }}
           >
+            {!(project.sandboxes || []).length && (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="该项目暂无沙箱，需先在沙箱列表提交创建申请并通过审核"
+              >
+                <Button type="primary" onClick={() => history.push(sandboxListPageUrl())}>
+                  去申请沙箱
+                </Button>
+              </Empty>
+            )}
             <Row gutter={[16, 16]}>
               {(project.sandboxes || []).map((sandbox: DataSandboxRecord) => (
                 <Col xs={24} md={12} xl={8} key={sandbox.id}>
@@ -398,7 +418,8 @@ export const SandboxWorkspaceComponent = () => {
       <WorkspaceDataCatalog sandboxId={sandboxId} />
     );
   return (
-    <Layout style={{ background: 'transparent' }}>
+    // 撑满 HomeLayout 给出的可用高度，避免左侧菜单和内容区停在半空
+    <Layout style={{ background: 'transparent', minHeight: '100%' }}>
       <Layout.Header
         style={{
           background: '#fff',
@@ -424,7 +445,7 @@ export const SandboxWorkspaceComponent = () => {
           <Tag>GPU {context.sandbox?.gpu_count}</Tag>
         </Space>
       </Layout.Header>
-      <Layout style={{ background: 'transparent' }}>
+      <Layout style={{ background: 'transparent', flex: 1, minHeight: 0 }}>
         <Layout.Sider width={190} theme="light">
           <Menu
             mode="inline"
@@ -433,7 +454,7 @@ export const SandboxWorkspaceComponent = () => {
             onSelect={({ key }) => history.replace(workspaceUrl(key, c))}
           />
         </Layout.Sider>
-        <Layout.Content style={{ padding: 16 }}>{page}</Layout.Content>
+        <Layout.Content style={{ padding: 16, overflow: 'auto' }}>{page}</Layout.Content>
       </Layout>
     </Layout>
   );

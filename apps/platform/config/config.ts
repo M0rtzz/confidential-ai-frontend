@@ -39,7 +39,7 @@ export default defineConfig({
   npmClient: 'pnpm',
   // https: {},
   svgr: {},
-  title: 'HUSTNLP 数据沙箱',
+  title: 'HUSTNLP 密态计算',
   favicons: ['/favicon.ico'],
   extraBabelPlugins: [
     'babel-plugin-transform-typescript-metadata',

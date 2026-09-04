@@ -3,11 +3,11 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { EndRoleBadge } from '@/components/end-role-badge';
 import { getEndRole } from '@/components/platform-wrapper';
-import { MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
+import { MvpPage, RefreshButton, formatTime } from '@/modules/data-sandbox-mvp/common';
 import { requestErrorMessage } from '@/modules/tee-export-approval/error';
 import { responseData, TrustChainApi } from '@/services/data-sandbox';
 
-import { short, stateColor, stateLabel } from './common';
+import { blockerLabel, short, stateColor, stateLabel } from './common';
 import {
   AttestationDrawer,
   ExportsDrawer,
@@ -168,6 +168,81 @@ export const TrustChainComponent = () => {
           </div>
         ))}
       </div>
+
+      {/* 链路下方的常驻信息面板：环境与底座判定不必开抽屉即可读到 */}
+      {summary?.environment && (
+        <div className={styles.infoPanel}>
+          <div className={styles.infoTitle}>环境与底座</div>
+          <div className={styles.infoGrid}>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>契约版本</span>
+              <span className={styles.infoValue}>{summary.contractVersion || '—'}</span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>本机构标识</span>
+              <span className={styles.infoValue}>{summary.ownerId || '—'}</span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>硬件检测</span>
+              <span className={styles.infoValue}>
+                {(['sgx', 'tdx', 'csv'] as const).map((device) => (
+                  <Tag
+                    key={device}
+                    color={
+                      summary.environment.deviceChecks[device] ? 'success' : 'default'
+                    }
+                    style={{ marginInlineEnd: 0 }}
+                  >
+                    {device.toUpperCase()}
+                  </Tag>
+                ))}
+              </span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>远程证明</span>
+              <span className={styles.infoValue}>
+                <Tag
+                  color={summary.environment.attestationVerified ? 'success' : 'default'}
+                  style={{ marginInlineEnd: 0 }}
+                >
+                  {summary.environment.attestationVerified ? '已验证' : '仿真未验证'}
+                </Tag>
+              </span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>真实模式就绪</span>
+              <span className={styles.infoValue}>
+                <Tag
+                  color={summary.environment.realModeReady ? 'success' : 'warning'}
+                  style={{ marginInlineEnd: 0 }}
+                >
+                  {summary.environment.realModeReady ? '就绪' : '未就绪'}
+                </Tag>
+              </span>
+            </div>
+            <div className={styles.infoItem}>
+              <span className={styles.infoLabel}>硬件检测时间</span>
+              <span className={styles.infoValue}>
+                {formatTime(summary.environment.checkedAt)}
+              </span>
+            </div>
+          </div>
+          <div className={styles.infoBlockers}>
+            <span className={styles.infoLabel}>阻塞项</span>
+            <div className={styles.infoValue}>
+              {summary.environment.blockers?.length ? (
+                summary.environment.blockers.map((code) => (
+                  <Tag key={code} color="warning" style={{ marginInlineEnd: 4 }}>
+                    {blockerLabel[code] || code}
+                  </Tag>
+                ))
+              ) : (
+                <Text type="secondary">无</Text>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <KeyLedgerDrawer
         open={openDrawer === 'KEY_ISSUE'}
