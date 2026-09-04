@@ -60,6 +60,8 @@ export const SandboxManagerComponent = () => {
   const [images, setImages] = useState<DataSandboxRecord[]>([]);
   const [projects, setProjects] = useState<DataSandboxRecord[]>([]);
   const [createAssets, setCreateAssets] = useState<DataSandboxRecord[]>([]);
+  /** 可授权的可信计算算子：供数方投票批准的就是这份清单的子集 */
+  const [operators, setOperators] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -104,20 +106,34 @@ export const SandboxManagerComponent = () => {
     });
   };
 
+  /** 算子下拉按分类分组，便于区分数据开发任务与画布算子 */
+  const operatorOptions = Array.from(
+    operators.reduce((groups, item) => {
+      const category = String(item.category || '其他');
+      const list = groups.get(category) || [];
+      list.push({ value: String(item.code), label: `${item.name}（${item.code}）` });
+      groups.set(category, list);
+      return groups;
+    }, new Map<string, { value: string; label: string }[]>()),
+  ).map(([label, options]) => ({ label, options }));
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [sandboxResponse, imageResponse, projectResponse] = await Promise.all([
-        // 沙箱创建审批以节点 platformNodeId 作为 owner_id 保存；登录用户的
-        // ownerId 可能是机构/账号 ID，使用它会把审批后创建的沙箱过滤掉。
-        DataSandboxApi.sandboxes({ ownerId: currentNodeId }),
-        DataSandboxApi.images(),
-        API.P2PProjectController.listP2PProject(),
-      ]);
+      const [sandboxResponse, imageResponse, projectResponse, operatorResponse] =
+        await Promise.all([
+          // 沙箱创建审批以节点 platformNodeId 作为 owner_id 保存；登录用户的
+          // ownerId 可能是机构/账号 ID，使用它会把审批后创建的沙箱过滤掉。
+          DataSandboxApi.sandboxes({ ownerId: currentNodeId }),
+          DataSandboxApi.images(),
+          API.P2PProjectController.listP2PProject(),
+          DataSandboxApi.approvalOperators(),
+        ]);
       setItems(responseData(sandboxResponse, []));
       setImages(responseData(imageResponse, []));
       setProjects(responseData(projectResponse, []));
+      setOperators(responseData(operatorResponse, []));
     } catch (requestError: unknown) {
       const detail = formatError(requestError, '加载沙箱失败');
       setError(detail);
@@ -527,6 +543,19 @@ export const SandboxManagerComponent = () => {
               }))}
             />
           </Form.Item>
+          <Form.Item
+            name="teeOperators"
+            label="授权可信计算算子"
+            tooltip="供数方投票批准的算子范围；未勾选的算子在可信运行时一律拒绝执行"
+            rules={[{ required: true, message: '请至少勾选一个算子' }]}
+          >
+            <Select
+              mode="multiple"
+              placeholder="选择本次申请需要在密文数据上执行的算子"
+              optionFilterProp="label"
+              options={operatorOptions}
+            />
+          </Form.Item>
           <Space size="large" wrap>
             <Form.Item name="cpuCores" label="CPU（核）">
               <InputNumber min={0.1} />
@@ -634,15 +663,30 @@ export const SandboxManagerComponent = () => {
             </Space>
           )}
           {changeType === 'DATA_CHANGE' && (
-            <Form.Item name="datasetAssetIds" label="挂载数据">
-              <Select
-                mode="multiple"
-                options={changeAssets.map((asset) => ({
-                  value: asset.id,
-                  label: `${asset.name}（${asset.provider_node_id}）`,
-                }))}
-              />
-            </Form.Item>
+            <>
+              <Form.Item name="datasetAssetIds" label="挂载数据">
+                <Select
+                  mode="multiple"
+                  options={changeAssets.map((asset) => ({
+                    value: asset.id,
+                    label: `${asset.name}（${asset.provider_node_id}）`,
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item
+                name="teeOperators"
+                label="授权可信计算算子"
+                tooltip="供数方投票批准的算子范围；未勾选的算子在可信运行时一律拒绝执行"
+                rules={[{ required: true, message: '请至少勾选一个算子' }]}
+              >
+                <Select
+                  mode="multiple"
+                  placeholder="选择本次申请需要在密文数据上执行的算子"
+                  optionFilterProp="label"
+                  options={operatorOptions}
+                />
+              </Form.Item>
+            </>
           )}
           {changeType === 'CONFIG_CHANGE' && (
             <>

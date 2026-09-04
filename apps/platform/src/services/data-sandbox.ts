@@ -83,6 +83,7 @@ export const DataSandboxApi = {
   approvals: (params?: DataSandboxRecord) =>
     get<DataSandboxRecord[]>('/approvals', params),
   approvalDetail: (id: string) => get<DataSandboxRecord>('/approvals/detail', { id }),
+  approvalOperators: () => get<DataSandboxRecord[]>('/approvals/operators'),
   approvalSubmit: (data: DataSandboxRecord) =>
     post<DataSandboxRecord>('/approvals/submit', data),
   approvalAction: (data: DataSandboxRecord) =>
