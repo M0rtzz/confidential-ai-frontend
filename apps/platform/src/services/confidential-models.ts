@@ -140,6 +140,7 @@ export const ConfidentialModelApi = {
     ).then((response) => responseData(response, undefined as never)),
   commitWeights: (data: {
     uploadSessionId: string;
+    modelId?: string;
     name: string;
     description: string;
     manifest: Omit<EncryptedFilePayload, 'chunks'> & {
@@ -152,6 +153,7 @@ export const ConfidentialModelApi = {
     runtimeSecurityRequirement: 'controlled-sim-ok';
   }) => post<ConfidentialModel>('/weight-versions', data),
   createOpenAi: (data: {
+    modelId?: string;
     name: string;
     description: string;
     domainId: string;
@@ -183,6 +185,27 @@ export const ConfidentialModelApi = {
   infer: (payload: EncryptedInferenceRequest) =>
     request<ApiResponse<EncryptedInferenceResponse>>(
       '/api/v1alpha1/confidential-inference/chat/completions',
-      { method: 'POST', data: payload, credentials: 'include' },
+      {
+        method: 'POST',
+        data: payload,
+        credentials: 'include',
+        headers: {
+          'User-Token': localStorage.getItem('User-Token') || '',
+        },
+        errorHandler: (failure) => {
+          const body = failure.data as
+            | (ApiResponse<unknown> & {
+                data?: { errorCode?: string };
+                error?: { code?: string; message?: string };
+              })
+            | undefined;
+          const reason =
+            body?.data?.errorCode ||
+            body?.error?.code ||
+            body?.status?.msg ||
+            body?.error?.message;
+          throw new Error(reason ? `密态推理失败：${reason}` : failure.message);
+        },
+      },
     ).then((response) => responseData(response, undefined as never)),
 };

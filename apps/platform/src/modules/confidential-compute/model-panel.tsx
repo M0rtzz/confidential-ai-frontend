@@ -121,6 +121,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
   const [models, setModels] = useState<ConfidentialModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [versionTarget, setVersionTarget] = useState<ConfidentialModel>();
   const [sourceType, setSourceType] =
     useState<ConfidentialModelSource>('LOCAL_WEIGHTS');
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -131,6 +132,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
   const [inferencePrompt, setInferencePrompt] = useState('');
   const [inferenceResult, setInferenceResult] = useState('');
   const [inferring, setInferring] = useState(false);
+  const [modelActionId, setModelActionId] = useState<string>();
   const [outputPackage, setOutputPackage] = useState<{
     deploymentId: string;
     taskId: string;
@@ -167,14 +169,18 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     [domains],
   );
 
-  const openImport = () => {
-    setSourceType('LOCAL_WEIGHTS');
+  const openImport = (target?: ConfidentialModel) => {
+    const nextSource = target?.sourceType || 'LOCAL_WEIGHTS';
+    setVersionTarget(target);
+    setSourceType(nextSource);
     setFileList([]);
     setProgress(0);
     form.resetFields();
     form.setFieldsValue({
-      sourceType: 'LOCAL_WEIGHTS',
-      domainId: domainOptions[0]?.value,
+      sourceType: nextSource,
+      name: target?.name,
+      description: target?.description,
+      domainId: target?.domainId || domainOptions[0]?.value,
       algorithm: DEFAULT_CONTENT_ENCRYPTION_ALGORITHM,
       servedModelName: 'deepseek-llm-7b-chat',
       timeoutSeconds: 60,
@@ -238,6 +244,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     const ownerSignature = await identity.sign(manifest);
     const imported = await ConfidentialModelApi.commitWeights({
       uploadSessionId: session.uploadSessionId,
+      modelId: versionTarget?.modelId,
       name: values.name,
       description: values.description || '',
       manifest,
@@ -272,6 +279,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       publicKey,
     );
     const imported = await ConfidentialModelApi.createOpenAi({
+      modelId: versionTarget?.modelId,
       name: values.name,
       description: values.description || '',
       domainId: values.domainId,
@@ -464,6 +472,33 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     }
   };
 
+  const recoverInferenceAuthorization = (
+    model: ConfidentialModel,
+    deploymentId: string,
+  ) => {
+    const materialLabel = model.sourceType === 'OPENAI_COMPATIBLE' ? '凭据' : '权重';
+    Modal.confirm({
+      title: '需要重新授权部署',
+      content: `当前浏览器没有该部署的有效 TEK 会话。系统将下线旧会话，并打开新${materialLabel}版本导入；完成审核和部署后即可继续推理。`,
+      okText: `下线并重新导入${materialLabel}`,
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await ConfidentialModelApi.offline(deploymentId);
+          deploymentSessions.current.delete(deploymentId);
+          deploymentTasks.current.delete(deploymentId);
+          await refresh();
+          openImport(model);
+        } catch (failure) {
+          message.error(
+            failure instanceof Error ? failure.message : '重新授权准备失败',
+          );
+          throw failure;
+        }
+      },
+    });
+  };
+
   const openInference = async (model: ConfidentialModel) => {
     try {
       const modelDetail = await ConfidentialModelApi.detail(model.modelId);
@@ -473,7 +508,8 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       if (!deployment) throw new Error('当前模型没有在线部署');
       const session = deploymentSessions.current.get(deployment.deploymentId);
       if (!session || Date.parse(session.expiresAt) <= Date.now()) {
-        throw new Error('当前浏览器没有有效的 TEK 会话，请重新授权部署');
+        recoverInferenceAuthorization(model, deployment.deploymentId);
+        return;
       }
       setInferencePrompt('');
       setInferenceResult('');
@@ -530,6 +566,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       else await importOpenAi(values);
       message.success('加密模型版本已导入');
       setImportOpen(false);
+      setVersionTarget(undefined);
       await refresh();
     } catch (failure) {
       if (failure instanceof Error) message.error(failure.message);
@@ -540,22 +577,24 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
 
   const act = async (model: ConfidentialModel, action: string) => {
     if (!model.versionId) return;
+    if (modelActionId === model.modelId) return;
+    setModelActionId(model.modelId);
     try {
       if (action === 'DEPLOY') {
+        const material = authorizationMaterials.current.get(model.versionId);
+        if (!material) {
+          message.warning(
+            model.sourceType === 'OPENAI_COMPATIBLE'
+              ? '当前浏览器没有该版本的凭据 DEK，请通过“新凭据版本”重新输入 API Key'
+              : '当前浏览器没有该版本的权重 DEK，请通过“新权重版本”重新导入权重',
+          );
+          return;
+        }
         const deployment = await ConfidentialModelApi.deploy(
           model.modelId,
           model.versionId,
         );
-        const material = authorizationMaterials.current.get(model.versionId);
-        if (material) {
-          await authorizeModelDeployment(model, deployment.deploymentId, material);
-        } else {
-          message.warning(
-            model.sourceType === 'OPENAI_COMPATIBLE'
-              ? '当前浏览器会话没有凭据 DEK，请导入新的凭据版本后部署'
-              : '当前浏览器会话没有权重 DEK，请重新导入该权重版本后部署',
-          );
-        }
+        await authorizeModelDeployment(model, deployment.deploymentId, material);
       } else {
         await ConfidentialModelApi.review(model.modelId, model.versionId, action);
         message.success('模型状态已更新');
@@ -563,6 +602,64 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       await refresh();
     } catch (failure) {
       message.error(failure instanceof Error ? failure.message : '操作失败');
+    } finally {
+      setModelActionId(undefined);
+    }
+  };
+
+  const continuePublishing = async (model: ConfidentialModel) => {
+    if (!model.versionId || modelActionId === model.modelId) return;
+    const material = authorizationMaterials.current.get(model.versionId);
+    if (!material) {
+      message.warning('当前浏览器已丢失凭据 DEK，请取消并重新导入凭据');
+      return;
+    }
+    setModelActionId(model.modelId);
+    try {
+      const modelDetail = await ConfidentialModelApi.detail(model.modelId);
+      const deployment = modelDetail.deployments?.find(
+        (item) =>
+          item.versionId === model.versionId &&
+          item.status === 'AUTHORIZATION_REQUIRED',
+      );
+      if (!deployment) throw new Error('没有找到等待授权的部署');
+      await authorizeModelDeployment(model, deployment.deploymentId, material);
+      await refresh();
+    } catch (failure) {
+      message.error(failure instanceof Error ? failure.message : '继续授权失败');
+    } finally {
+      setModelActionId(undefined);
+    }
+  };
+
+  const cancelPublishing = async (
+    model: ConfidentialModel,
+    replaceCredential = false,
+  ) => {
+    if (modelActionId === model.modelId) return;
+    setModelActionId(model.modelId);
+    try {
+      const modelDetail = await ConfidentialModelApi.detail(model.modelId);
+      const deployments = modelDetail.deployments?.filter(
+        (item) => item.status === 'AUTHORIZATION_REQUIRED',
+      );
+      if (!deployments?.length) throw new Error('没有找到等待授权的部署');
+      for (const deployment of deployments) {
+        await ConfidentialModelApi.offline(deployment.deploymentId);
+        deploymentSessions.current.delete(deployment.deploymentId);
+        deploymentTasks.current.delete(deployment.deploymentId);
+      }
+      message.success(
+        replaceCredential
+          ? '已取消旧发布，请重新输入凭据并创建不可变新版本'
+          : '已取消等待授权的发布，模型恢复为已批准状态',
+      );
+      await refresh();
+      if (replaceCredential) openImport(model);
+    } catch (failure) {
+      message.error(failure instanceof Error ? failure.message : '取消发布失败');
+    } finally {
+      setModelActionId(undefined);
     }
   };
 
@@ -579,7 +676,11 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
             统一管理加密权重和 OpenAI 兼容模型
           </Typography.Text>
         </div>
-        <Button type="primary" icon={<CloudUploadOutlined />} onClick={openImport}>
+        <Button
+          type="primary"
+          icon={<CloudUploadOutlined />}
+          onClick={() => openImport()}
+        >
           导入模型
         </Button>
       </div>
@@ -643,7 +744,11 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
             title: '状态',
             dataIndex: 'status',
             render: (value) =>
-              value === 'RUNTIME_REQUIRED' ? (
+              value === 'PUBLISHING' ? (
+                <Tooltip title="部署已创建，正在等待当前浏览器完成一次性 TEK 授权">
+                  <Tag color={statusColor[value] || 'default'}>等待授权</Tag>
+                </Tooltip>
+              ) : value === 'RUNTIME_REQUIRED' ? (
                 <Tooltip title="A100 模拟授权已完成，但未配置真实 vLLM 运行端点">
                   <Tag
                     color={statusColor[value] || 'default'}
@@ -686,13 +791,54 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
                   </>
                 )}
                 {record.status === 'APPROVED' && (
-                  <Button
-                    size="small"
-                    icon={<DeploymentUnitOutlined />}
-                    onClick={() => void act(record, 'DEPLOY')}
-                  >
-                    部署
-                  </Button>
+                  <>
+                    <Button
+                      size="small"
+                      icon={<DeploymentUnitOutlined />}
+                      loading={modelActionId === record.modelId}
+                      onClick={() => void act(record, 'DEPLOY')}
+                    >
+                      部署
+                    </Button>
+                    {!authorizationMaterials.current.has(record.versionId || '') && (
+                      <Button size="small" onClick={() => openImport(record)}>
+                        {record.sourceType === 'OPENAI_COMPATIBLE'
+                          ? '新凭据版本'
+                          : '新权重版本'}
+                      </Button>
+                    )}
+                  </>
+                )}
+                {record.status === 'PUBLISHING' && (
+                  <>
+                    {authorizationMaterials.current.has(record.versionId || '') && (
+                      <Button
+                        size="small"
+                        type="primary"
+                        loading={modelActionId === record.modelId}
+                        onClick={() => void continuePublishing(record)}
+                      >
+                        继续授权
+                      </Button>
+                    )}
+                    <Button
+                      size="small"
+                      disabled={modelActionId === record.modelId}
+                      onClick={() => void cancelPublishing(record, true)}
+                    >
+                      {record.sourceType === 'OPENAI_COMPATIBLE'
+                        ? '取消并重新导入凭据'
+                        : '取消并重新导入权重'}
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      disabled={modelActionId === record.modelId}
+                      onClick={() => void cancelPublishing(record)}
+                    >
+                      取消发布
+                    </Button>
+                  </>
                 )}
                 {record.status === 'ONLINE' && (
                   <Button
@@ -710,13 +856,18 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       />
 
       <Modal
-        title="导入机密模型"
+        title={versionTarget ? `导入新版本 · ${versionTarget.name}` : '导入机密模型'}
         open={importOpen}
         width={680}
         okText="加密并导入"
         confirmLoading={submitting}
         onOk={() => void submitImport()}
-        onCancel={() => !submitting && setImportOpen(false)}
+        onCancel={() => {
+          if (!submitting) {
+            setImportOpen(false);
+            setVersionTarget(undefined);
+          }
+        }}
       >
         <Alert
           showIcon
@@ -730,6 +881,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
             <Segmented
               block
               value={sourceType}
+              disabled={Boolean(versionTarget)}
               options={[
                 {
                   label: '上传权重',
