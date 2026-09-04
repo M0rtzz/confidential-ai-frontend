@@ -250,6 +250,40 @@
   word-break: break-all;
 }
 
-.infoBlockers {
-  margin-top: 14px;
+// 可信度结论：一行判定 + 一行原因，避免与状态条上的执行环境重复表述
+.verdict {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: #fafbfc;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+
+.verdictDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+
+.verdictBody {
+  min-width: 0;
+}
+
+.verdictText {
+  color: rgb(0 0 0 / 88%);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.verdictReason {
+  margin-top: 2px;
+  color: rgb(0 0 0 / 45%);
+  font-size: 12px;
+  line-height: 1.5;
 }

@@ -1,9 +1,24 @@
-import { Alert, Button, Descriptions, Empty, Input, Modal, Space, Tag, Typography, message } from 'antd';
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Empty,
+  Input,
+  Modal,
+  Row,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
 import { parse } from 'query-string';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'umi';
 
-import { formatTime } from '@/modules/data-sandbox-mvp/common';
+import { formatTime, RefreshButton } from '@/modules/data-sandbox-mvp/common';
 import { requestErrorMessage } from '@/modules/tee-export-approval/error';
 import {
   deleteUsingPOST,
@@ -35,6 +50,8 @@ export const PeerConnectionComponent = () => {
 
   const [checkLoading, setCheckLoading] = useState(false);
   const [blockers, setBlockers] = useState<DataSandboxRecord[]>();
+  /** 常驻展示的解绑前置检查结果，与删除时的二次确认取自同一接口 */
+  const [unbind, setUnbind] = useState<DataSandboxRecord>();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInput, setConfirmInput] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -42,7 +59,12 @@ export const PeerConnectionComponent = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      setPeerData(responseData(await TrustChainApi.peer(), {}));
+      const [peerResult, unbindResult] = await Promise.all([
+        TrustChainApi.peer(),
+        TrustChainApi.unbindCheck(),
+      ]);
+      setPeerData(responseData(peerResult, {}));
+      setUnbind(responseData(unbindResult, {}));
     } catch (error) {
       message.error(requestErrorMessage(error, '加载中心端连接失败'));
     } finally {
@@ -121,69 +143,132 @@ export const PeerConnectionComponent = () => {
         </Empty>
       ) : (
         <div className={styles.peerConnectionCard}>
-          <Descriptions bordered size="small" column={2} title="中心端连接">
-            <Descriptions.Item label="中心端机构名称" span={2}>
-              {peer?.ownerName || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="中心端机构标识" span={2}>
-              {peer?.ownerId || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="通讯地址" span={2}>
-              {peer?.address || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="证书指纹" span={2}>
-              {peer?.certSha256 || '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="节点路由" span={2}>
-              {(peer?.routes || []).length ? (
-                <Space direction="vertical" size={2}>
-                  {(peer?.routes || []).map((route: DataSandboxRecord) => (
-                    <span key={`${route.srcNodeId}-${route.dstNodeId}`}>
-                      <Tag color={route.status === 'Succeeded' ? 'success' : 'warning'}>
-                        {routeStatusLabel(route.status)}
-                      </Tag>
-                      {route.srcNodeId} → {route.dstNodeId}
-                      <Text type="secondary" style={{ marginLeft: 8 }}>
-                        {route.direction === 'OUTBOUND' ? '出向' : '入向'}
-                      </Text>
-                    </span>
-                  ))}
-                </Space>
-              ) : (
-                <Text type="secondary">未登记</Text>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="契约通道">
-              <Tag
-                color={
-                  peer?.contractChannelReachable === null
-                    ? 'default'
-                    : peer?.contractChannelReachable
-                      ? 'success'
-                      : 'error'
+          <Row gutter={[16, 16]}>
+            <Col xs={24} xl={14}>
+              <Card size="small" title="连接信息" bordered>
+                <Descriptions bordered size="small" column={1}>
+                  <Descriptions.Item label="中心端机构名称">
+                    {peer?.ownerName || '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="中心端机构标识">
+                    {peer?.ownerId || '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="通讯地址">
+                    {peer?.address || '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="证书指纹">
+                    <Text copyable={{ text: peer?.certSha256 || '' }} style={{ wordBreak: 'break-all' }}>
+                      {peer?.certSha256 || '-'}
+                    </Text>
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+            </Col>
+            <Col xs={24} xl={10}>
+              <Card
+                size="small"
+                title="链路状态"
+                bordered
+                style={{ height: '100%' }}
+              >
+                <div className={styles.linkBlock}>
+                  <div className={styles.linkTitle}>
+                    节点路由
+                    <Text type="secondary" className={styles.linkNote}>
+                      Kuscia 数据面，承载计算任务的数据通信；每个平台只登记自己创建的那条，
+                      状态取自 Kuscia 的实际判定
+                    </Text>
+                  </div>
+                  {(peer?.routes || []).length ? (
+                    <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                      {(peer?.routes || []).map((route: DataSandboxRecord) => (
+                        <span key={`${route.srcNodeId}-${route.dstNodeId}`}>
+                          <Tag color={route.status === 'Succeeded' ? 'success' : 'warning'}>
+                            {routeStatusLabel(route.status)}
+                          </Tag>
+                          {route.srcNodeId} → {route.dstNodeId}
+                          <Text type="secondary" style={{ marginLeft: 8 }}>
+                            {route.direction === 'OUTBOUND' ? '出向' : '入向'}
+                          </Text>
+                        </span>
+                      ))}
+                    </Space>
+                  ) : (
+                    <Text type="secondary">未登记</Text>
+                  )}
+                </div>
+                <div className={styles.linkBlock}>
+                  <div className={styles.linkTitle}>
+                    契约通道
+                    <Text type="secondary" className={styles.linkNote}>
+                      平台间双向 TLS 的契约面，密钥申请、规则登记与出域信封均走这里
+                    </Text>
+                  </div>
+                  <Space size={12}>
+                    <Tag
+                      color={
+                        peer?.contractChannelReachable === null
+                          ? 'default'
+                          : peer?.contractChannelReachable
+                            ? 'success'
+                            : 'error'
+                      }
+                    >
+                      {peer?.contractChannelReachable === null
+                        ? '不适用'
+                        : peer?.contractChannelReachable
+                          ? '连通'
+                          : '不通'}
+                    </Tag>
+                    <Text type="secondary">
+                      最近检查 {formatTime(peer?.contractCheckedAt)}
+                    </Text>
+                  </Space>
+                </div>
+              </Card>
+            </Col>
+            <Col span={24}>
+              <Card
+                size="small"
+                bordered
+                title="数据关联"
+                extra={
+                  <Tag color={unbind?.clean ? 'success' : 'warning'}>
+                    {unbind?.clean ? '无未清理项，可断开连接' : '存在未清理项，暂不能断开'}
+                  </Tag>
                 }
               >
-                {peer?.contractChannelReachable === null
-                  ? '不适用'
-                  : peer?.contractChannelReachable
-                    ? '连通'
-                    : '不通'}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="契约通道最近检查时间">
-              {formatTime(peer?.contractCheckedAt)}
-            </Descriptions.Item>
-          </Descriptions>
-          <Alert
-            showIcon
-            type="info"
-            style={{ marginTop: 12 }}
-            message="节点路由是 Kuscia 数据面，用于计算任务的数据通信；契约通道是平台间双向 TLS 的契约面，密钥申请、规则登记与出域信封均走契约通道。每个平台只登记自己创建的那条路由，状态取自 Kuscia 的实际判定。"
-          />
+                <Table
+                  rowKey="key"
+                  size="small"
+                  pagination={false}
+                  loading={loading}
+                  dataSource={(unbind?.blockers || []) as DataSandboxRecord[]}
+                  columns={[
+                    { title: '关联项', dataIndex: 'label', width: 220 },
+                    {
+                      title: '数量',
+                      dataIndex: 'count',
+                      width: 120,
+                      render: (count: number) => (
+                        <Text type={count > 0 ? 'warning' : 'secondary'} strong={count > 0}>
+                          {count}
+                        </Text>
+                      ),
+                    },
+                    { title: '清理方式', dataIndex: 'hint' },
+                  ]}
+                />
+              </Card>
+            </Col>
+          </Row>
           <div style={{ marginTop: 16 }}>
-            <Button danger loading={checkLoading} onClick={startUnbind}>
-              删除
-            </Button>
+            <Space>
+              <Button danger loading={checkLoading} onClick={startUnbind}>
+                删除
+              </Button>
+              <RefreshButton loading={loading} onClick={refresh} />
+            </Space>
           </div>
         </div>
       )}

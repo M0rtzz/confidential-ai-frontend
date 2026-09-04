@@ -135,3 +135,27 @@
     margin-right: -28px;
   }
 }
+
+// 「中心端连接」链路状态卡：每段状态自带一句说明，取代整块信息横幅
+.linkBlock {
+  & + & {
+    padding-top: 12px;
+    margin-top: 12px;
+    border-top: 1px solid #f0f0f0;
+  }
+}
+
+.linkTitle {
+  margin-bottom: 8px;
+  color: rgb(0 0 0 / 88%);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.linkNote {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.5;
+}

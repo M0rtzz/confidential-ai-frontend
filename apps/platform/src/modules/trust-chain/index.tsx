@@ -169,76 +169,49 @@ export const TrustChainComponent = () => {
         ))}
       </div>
 
-      {/* 链路下方的常驻信息面板：环境与底座判定不必开抽屉即可读到 */}
+      {/* 链路下方的常驻信息面板：只给一个可信度结论，细节归到结论的原因里 */}
       {summary?.environment && (
         <div className={styles.infoPanel}>
           <div className={styles.infoTitle}>环境与底座</div>
+          <div className={styles.verdict}>
+            <span
+              className={styles.verdictDot}
+              style={{
+                background: summary.environment.realModeReady ? '#52c41a' : '#faad14',
+              }}
+            />
+            <div className={styles.verdictBody}>
+              <div className={styles.verdictText}>
+                {summary.environment.realModeReady ? '真实模式就绪' : '真实模式未就绪'}
+              </div>
+              <div className={styles.verdictReason}>
+                {summary.environment.realModeReady
+                  ? '硬件检测通过并已取得可信硬件背书，可切换到真实执行模式'
+                  : summary.environment.blockers?.length
+                    ? summary.environment.blockers
+                        .map((code) => blockerLabel[code] || code)
+                        .join('；')
+                    : '未取得可信硬件背书'}
+              </div>
+            </div>
+          </div>
           <div className={styles.infoGrid}>
             <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>契约版本</span>
-              <span className={styles.infoValue}>{summary.contractVersion || '—'}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>本机构标识</span>
-              <span className={styles.infoValue}>{summary.ownerId || '—'}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>硬件检测</span>
+              <span className={styles.infoLabel}>本机构</span>
               <span className={styles.infoValue}>
-                {(['sgx', 'tdx', 'csv'] as const).map((device) => (
-                  <Tag
-                    key={device}
-                    color={
-                      summary.environment.deviceChecks[device] ? 'success' : 'default'
-                    }
-                    style={{ marginInlineEnd: 0 }}
-                  >
-                    {device.toUpperCase()}
-                  </Tag>
-                ))}
+                {summary.ownerName || '-'}
+                {summary.ownerId && (
+                  <Text type="secondary" style={{ fontWeight: 400 }}>
+                    {summary.ownerId}
+                  </Text>
+                )}
               </span>
             </div>
             <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>远程证明</span>
-              <span className={styles.infoValue}>
-                <Tag
-                  color={summary.environment.attestationVerified ? 'success' : 'default'}
-                  style={{ marginInlineEnd: 0 }}
-                >
-                  {summary.environment.attestationVerified ? '已验证' : '仿真未验证'}
-                </Tag>
-              </span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>真实模式就绪</span>
-              <span className={styles.infoValue}>
-                <Tag
-                  color={summary.environment.realModeReady ? 'success' : 'warning'}
-                  style={{ marginInlineEnd: 0 }}
-                >
-                  {summary.environment.realModeReady ? '就绪' : '未就绪'}
-                </Tag>
-              </span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.infoLabel}>硬件检测时间</span>
+              <span className={styles.infoLabel}>最近检测</span>
               <span className={styles.infoValue}>
                 {formatTime(summary.environment.checkedAt)}
               </span>
-            </div>
-          </div>
-          <div className={styles.infoBlockers}>
-            <span className={styles.infoLabel}>阻塞项</span>
-            <div className={styles.infoValue}>
-              {summary.environment.blockers?.length ? (
-                summary.environment.blockers.map((code) => (
-                  <Tag key={code} color="warning" style={{ marginInlineEnd: 4 }}>
-                    {blockerLabel[code] || code}
-                  </Tag>
-                ))
-              ) : (
-                <Text type="secondary">无</Text>
-              )}
             </div>
           </div>
         </div>
