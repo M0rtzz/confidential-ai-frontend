@@ -7,6 +7,10 @@ export const routes = [
       { path: '/', component: 'new-home', wrappers: ['@/wrappers/center-auth'] },
       { path: '/home', component: 'new-home', wrappers: ['@/wrappers/center-auth'] },
       {
+        path: '/confidential-compute',
+        component: 'confidential-compute',
+      },
+      {
         path: '/dag',
         component: 'dag',
         wrappers: ['@/wrappers/p2p-center-auth', '@/wrappers/component-wrapper'],

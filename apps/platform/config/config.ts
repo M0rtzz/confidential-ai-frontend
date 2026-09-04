@@ -77,6 +77,11 @@ export default defineConfig({
   codeSplitting: {
     jsStrategy: 'granularChunks',
   },
+  // RFC 9180 X25519 uses BigInt internally. ES2020 keeps the HPKE
+  // implementation intact instead of applying an unsafe numeric transform.
+  jsMinifierOptions: {
+    target: ['chrome80', 'es2020'],
+  },
   // oneApi: {
   //   apps: [
   //     {

@@ -3,6 +3,7 @@ import {
   CaretDownOutlined,
   LogoutOutlined,
   DatabaseOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { Avatar, Badge, Button, Dropdown, Empty, Popover, Space, Spin } from 'antd';
 import classNames from 'classnames';
@@ -239,6 +240,13 @@ export const HeaderComponent = () => {
         )}
       </div>
       <div className={styles.right}>
+        <Button
+          type="text"
+          icon={<SafetyCertificateOutlined />}
+          onClick={() => history.push('/confidential-compute')}
+        >
+          可信计算
+        </Button>
         {/* {layoutService.showBackButton && (
           <>
             <span

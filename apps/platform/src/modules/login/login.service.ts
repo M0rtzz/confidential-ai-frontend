@@ -22,6 +22,7 @@ export class LoginService extends Model {
     return await API.AuthController.login({
       name: loginField.name,
       passwordHash: sha256(loginField.password).toString(),
+      endRole: 'CLIENT',
     });
   }
 

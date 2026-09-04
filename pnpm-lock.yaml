@@ -105,6 +105,15 @@ importers:
       '@antv/x6-react-shape':
         specifier: ^2.2.2
         version: 2.2.3(@antv/x6@2.18.1)(react-dom@18.3.1)(react@18.3.1)
+      '@hpke/core':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@hpke/dhkem-x25519':
+        specifier: ^1.8.0
+        version: 1.8.0
+      '@noble/ciphers':
+        specifier: 2.4.0
+        version: 2.4.0
       '@secretflow/dag':
         specifier: workspace:^
         version: link:../../packages/dag
@@ -3302,6 +3311,25 @@ packages:
       typescript: 4.9.5
     dev: true
 
+  /@hpke/common@1.10.1:
+    resolution: {integrity: sha512-moJwhmtLtuxiUzzNp1jpfBfx8yefKoO9D/RCR9dmwrnc7qjJqId1rEtQz+lSlU5cabX8daToMSx/7HayXOiaFw==}
+    engines: {node: '>=16.0.0'}
+    dev: false
+
+  /@hpke/core@1.9.0:
+    resolution: {integrity: sha512-pFxWl1nNJeQCSUFs7+GAblHvXBCjn9EPN65vdKlYQil2aURaRxfGMO6vBKGqm1YHTKwiAxJQNEI70PbSowMP9Q==}
+    engines: {node: '>=16.0.0'}
+    dependencies:
+      '@hpke/common': 1.10.1
+    dev: false
+
+  /@hpke/dhkem-x25519@1.8.0:
+    resolution: {integrity: sha512-S1MWWkAfu+TFxySgv5+2P3O4Mx/jk7BsoplzQaA1s3sfUJVJ2UsZsSzSsMc+FXJumLXncoJFlO6mK6mDGspfmA==}
+    engines: {node: '>=16.0.0'}
+    dependencies:
+      '@hpke/common': 1.10.1
+    dev: false
+
   /@humanwhocodes/config-array@0.11.14:
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
@@ -3665,6 +3693,11 @@ packages:
     resolution: {integrity: sha512-54/JRvkLIzzDWshCWfuhadfrfZVPiElY8Fcgmg1HroEly/EDSszzhBAsarCux+D/kOslTRquNzuyGSmUSTTHGg==}
     dependencies:
       eslint-scope: 5.1.1
+
+  /@noble/ciphers@2.4.0:
+    resolution: {integrity: sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==}
+    engines: {node: '>= 20.19.0'}
+    dev: false
 
   /@nodelib/fs.scandir@2.1.5:
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
