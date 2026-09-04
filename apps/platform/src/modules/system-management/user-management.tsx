@@ -267,11 +267,13 @@ export const UserManagementComponent = () => {
           pageSize: 10,
           showTotal: (total) => '共 ' + total + ' 条',
         }}
-        scroll={{ x: 1180 }}
+        scroll={{ x: 1400 }}
         columns={[
           {
             title: '账户',
             dataIndex: 'account',
+            // 其余列宽合计 1160，这一列不给宽度会被挤成一条竖排文字
+            width: 220,
             render: (value: string, row: ManagedUserWithAssignment) => (
               <>
                 <span className={styles.cellTitle}>{value}</span>

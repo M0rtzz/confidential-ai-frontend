@@ -1,0 +1,103 @@
+// 数据计算首页：项目作为分节标题，沙箱按等宽卡片平铺，避免卡片套卡片
+.projectSection {
+  & + & {
+    padding-top: 20px;
+    border-top: 1px solid #f0f0f0;
+    margin-top: 20px;
+  }
+}
+
+.projectHeader {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.projectName {
+  color: rgb(0 0 0 / 88%);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.projectMeta {
+  color: rgb(0 0 0 / 45%);
+  font-size: 12px;
+}
+
+.sandboxGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.sandboxCard {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+  border: 1px solid #ebedf0;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    border-color: #1677ff;
+    box-shadow: 0 4px 14px rgb(22 119 255 / 12%);
+  }
+}
+
+.sandboxHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+  gap: 8px;
+}
+
+.sandboxName {
+  overflow: hidden;
+  flex: 1;
+  color: rgb(0 0 0 / 88%);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sandboxMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metaRow {
+  display: flex;
+  align-items: baseline;
+  font-size: 13px;
+  gap: 12px;
+  line-height: 1.4;
+}
+
+.metaLabel {
+  width: 56px;
+  flex: none;
+  color: rgb(0 0 0 / 45%);
+  font-size: 12px;
+}
+
+.metaValue {
+  flex: 1;
+  color: rgb(0 0 0 / 88%);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.sandboxAlert {
+  margin-top: 12px;
+}
+
+.sandboxFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 14px;
+  margin-top: auto;
+}

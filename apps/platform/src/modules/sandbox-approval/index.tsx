@@ -290,11 +290,12 @@ export const SandboxApprovalComponent = () => {
             ? item.direction !== 'INCOMING'
             : item.direction === 'INCOMING',
         )}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1660 }}
         columns={[
           {
             title: '申请单',
             dataIndex: 'id',
+            width: 220,
             render: (id: string, row: DataSandboxRecord) => (
               <Space direction="vertical" size={0}>
                 <strong>{id}</strong>
@@ -309,19 +310,24 @@ export const SandboxApprovalComponent = () => {
           {
             title: '资源 ID',
             dataIndex: 'sandbox_id',
+            width: 200,
+            ellipsis: true,
             render: (v: string) => (v ? v : '-'),
           },
-          { title: '所属方', dataIndex: 'owner_id' },
+          { title: '所属方', dataIndex: 'owner_id', width: 150, ellipsis: true },
           {
             title: '所属项目',
             dataIndex: 'project_name',
+            width: 180,
+            ellipsis: true,
             render: (value: string, row: DataSandboxRecord) =>
               value || row.project_id || '-',
           },
-          { title: '提交人', dataIndex: 'submitter' },
+          { title: '提交人', dataIndex: 'submitter', width: 120, ellipsis: true },
           {
             title: '状态',
             dataIndex: 'status',
+            width: 260,
             render: (v: string, row: DataSandboxRecord) => {
               const error = String(row.last_error || '').trim();
               const source = String(row.executor || 'system');
@@ -336,7 +342,16 @@ export const SandboxApprovalComponent = () => {
                     <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>
                   </Tooltip>
                   {v === 'FAILED' && errorDetail && (
-                    <span style={{ color: '#ff4d4f', maxWidth: 260 }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        maxWidth: 236,
+                        color: '#ff4d4f',
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        wordBreak: 'break-word',
+                      }}
+                    >
                       {errorDetail}
                     </span>
                   )}
@@ -347,12 +362,19 @@ export const SandboxApprovalComponent = () => {
           {
             title: '重试',
             dataIndex: 'retry_count',
+            width: 80,
             render: (v: number) => (v > 0 ? `${v} 次` : '-'),
           },
-          { title: '提交时间', dataIndex: 'submitted_at', render: formatTime },
+          {
+            title: '提交时间',
+            dataIndex: 'submitted_at',
+            width: 170,
+            render: formatTime,
+          },
           {
             title: '操作',
             width: 280,
+            fixed: 'right' as const,
             render: (_: unknown, row: DataSandboxRecord) => (
               <Space wrap>
                 {view === 'review' &&

@@ -166,6 +166,8 @@ const menuItems: EdgeMenuItem[] = [
         key: 'sandbox-resource-application',
         icon: <ExperimentOutlined />,
         component: <SandboxManagerComponent />,
+        // 沙箱由中心端发起并分配算力，客户端只参与投票，不需要这份列表
+        ends: [EndRole.CENTER],
       },
       {
         label: '项目资源审核',
@@ -243,6 +245,7 @@ const menuItems: EdgeMenuItem[] = [
 ];
 /**
  * 按端身份过滤菜单并按端改写标题；一级项若全部子项都被过滤掉，一级项也不展示。
+ * 过滤后只剩一个子项时不再保留下拉，由该子项直接取代一级入口。
  * 端身份未就绪时先不展示按端限定的菜单，避免闪出不属于本端的入口。
  */
 const filterMenuItemsByEnd = (
@@ -254,9 +257,10 @@ const filterMenuItemsByEnd = (
     .map((item) => {
       const label =
         endRole === EndRole.CLIENT && item.clientLabel ? item.clientLabel : item.label;
-      return item.children
-        ? { ...item, label, children: filterMenuItemsByEnd(item.children, endRole) }
-        : { ...item, label };
+      if (!item.children) return { ...item, label };
+      const children = filterMenuItemsByEnd(item.children, endRole);
+      if (children.length === 1) return { ...children[0] };
+      return { ...item, label, children };
     })
     .filter((item) => !item.children || item.children.length > 0);
 

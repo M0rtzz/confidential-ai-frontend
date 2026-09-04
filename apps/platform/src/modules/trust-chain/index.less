@@ -6,20 +6,20 @@
   flex-wrap: wrap;
   align-items: stretch;
   padding: 14px 18px;
+  border: 1px solid #ebedf0;
+  border-radius: 8px;
+  border-left: 3px solid #1677ff;
   margin-bottom: 20px;
   background: #fff;
-  border: 1px solid #ebedf0;
-  border-left: 3px solid #1677ff;
-  border-radius: 8px;
   row-gap: 12px;
 }
 
 .statusItem {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   padding: 0 20px;
   border-left: 1px solid #f0f0f0;
+  gap: 4px;
 
   &:first-child {
     padding-left: 0;
@@ -30,19 +30,19 @@
 .statusLabel {
   color: rgb(0 0 0 / 45%);
   font-size: 12px;
-  line-height: 1.2;
   letter-spacing: 0.02em;
+  line-height: 1.2;
 }
 
 .statusValue {
   display: flex;
-  align-items: center;
-  gap: 6px;
   min-height: 22px;
+  align-items: center;
   color: rgb(0 0 0 / 88%);
-  font-weight: 600;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  gap: 6px;
   line-height: 1.2;
 }
 
@@ -51,22 +51,22 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 10px;
-  margin-bottom: 20px;
   padding-bottom: 4px;
+  margin-bottom: 20px;
+  gap: 10px;
   overflow-x: auto;
 }
 
 .segmentCard {
   position: relative;
   display: flex;
+  min-width: 158px;
   flex: 1 1 0;
   flex-direction: column;
-  min-width: 158px;
   padding: 14px 16px 12px;
-  background: #fff;
   border: 1px solid #ebedf0;
   border-radius: 8px;
+  background: #fff;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 
@@ -84,54 +84,54 @@
   // 段与段之间的流向指示；换行后由媒体查询隐藏
   &:not(:last-child)::after {
     position: absolute;
+    z-index: 1;
     top: 50%;
     right: -11px;
-    z-index: 1;
     color: #d0d5dd;
+    content: '›';
     font-size: 14px;
     line-height: 1;
-    transform: translateY(-50%);
-    content: '›';
     pointer-events: none;
+    transform: translateY(-50%);
   }
 }
 
 .segmentHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
   margin-bottom: 12px;
+  gap: 8px;
 }
 
 .segmentIndex {
   display: inline-flex;
+  width: 22px;
+  height: 22px;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  border-radius: 50%;
+  background: #f0f6ff;
   color: #1677ff;
-  font-weight: 600;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  background: #f0f6ff;
-  border-radius: 50%;
+  font-weight: 600;
 }
 
 .segmentLabel {
-  flex: 1;
   overflow: hidden;
+  flex: 1;
   color: rgb(0 0 0 / 88%);
-  font-weight: 600;
   font-size: 14px;
-  white-space: nowrap;
+  font-weight: 600;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .segmentDot {
-  flex: none;
   width: 8px;
   height: 8px;
+  flex: none;
   border-radius: 50%;
 }
 
@@ -149,9 +149,9 @@
 
 .metricValue {
   color: rgb(0 0 0 / 88%);
-  font-weight: 600;
   font-size: 18px;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
   line-height: 1.1;
 }
 
@@ -176,14 +176,14 @@
 
 .hexBlock {
   padding: 12px 14px;
-  overflow-x: auto;
-  color: rgb(0 0 0 / 75%);
-  font-size: 12px;
-  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  line-height: 20px;
-  background: #fafafa;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
+  background: #fafafa;
+  color: rgb(0 0 0 / 75%);
+  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 20px;
+  overflow-x: auto;
 }
 
 // 打印可信执行回执卡时让其单独成页，屏蔽页面其余部分
@@ -208,26 +208,28 @@
 // 链路下方的常驻信息面板：把环境与底座的判定摊开，避免页面下半部大片留白
 .infoPanel {
   padding: 16px 18px;
-  background: #fff;
   border: 1px solid #ebedf0;
   border-radius: 8px;
+  background: #fff;
 }
 
 .infoTitle {
   margin-bottom: 14px;
   color: rgb(0 0 0 / 88%);
-  font-weight: 600;
   font-size: 14px;
+  font-weight: 600;
 }
 
+// 每项按内容取宽：等宽栅格会把机构名挤成两行，标识再被拆断
 .infoGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 14px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 40px;
 }
 
 .infoItem {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 4px;
 }
@@ -240,34 +242,35 @@
 
 .infoValue {
   display: flex;
-  align-items: center;
-  gap: 6px;
   min-height: 22px;
+  flex-wrap: wrap;
+  align-items: center;
   color: rgb(0 0 0 / 88%);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+  gap: 6px;
   line-height: 1.3;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 // 可信度结论：一行判定 + 一行原因，避免与状态条上的执行环境重复表述
 .verdict {
   display: flex;
-  gap: 10px;
   align-items: flex-start;
   padding: 12px 14px;
-  margin-bottom: 14px;
-  background: #fafbfc;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
+  margin-bottom: 14px;
+  background: #fafbfc;
+  gap: 10px;
 }
 
 .verdictDot {
-  flex: none;
   width: 8px;
   height: 8px;
-  margin-top: 6px;
+  flex: none;
   border-radius: 50%;
+  margin-top: 6px;
 }
 
 .verdictBody {
@@ -276,8 +279,8 @@
 
 .verdictText {
   color: rgb(0 0 0 / 88%);
-  font-weight: 600;
   font-size: 14px;
+  font-weight: 600;
   line-height: 1.4;
 }
 

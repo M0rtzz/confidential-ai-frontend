@@ -18,7 +18,8 @@
   }
 
   .peerConnectionCard {
-    max-width: 760px;
+    // 与内容区同宽，只在超宽屏上收口，避免右侧留出整块空白
+    max-width: 1440px;
     padding: 24px 0;
   }
 
@@ -140,22 +141,22 @@
 .linkBlock {
   & + & {
     padding-top: 12px;
-    margin-top: 12px;
     border-top: 1px solid #f0f0f0;
+    margin-top: 12px;
   }
 }
 
 .linkTitle {
   margin-bottom: 8px;
   color: rgb(0 0 0 / 88%);
-  font-weight: 600;
   font-size: 13px;
+  font-weight: 600;
 }
 
 .linkNote {
   display: block;
   margin-top: 2px;
-  font-weight: 400;
   font-size: 12px;
+  font-weight: 400;
   line-height: 1.5;
 }

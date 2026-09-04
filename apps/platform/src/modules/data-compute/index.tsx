@@ -2,7 +2,6 @@ import {
   Alert,
   Button,
   Card,
-  Col,
   Descriptions,
   Divider,
   Drawer,
@@ -14,7 +13,6 @@ import {
   Modal,
   Popconfirm,
   Result,
-  Row,
   Select,
   Space,
   Table,
@@ -44,6 +42,8 @@ import {
   DataSandboxRecord,
   responseData,
 } from '@/services/data-sandbox';
+
+import styles from './index.less';
 
 const useComputeQuery = () => {
   const query = parse(useLocation().search);
@@ -146,76 +146,93 @@ export const DataComputeHomeComponent = () => {
       {!projects.length && !loading ? (
         <Empty description="当前节点暂无可计算项目" />
       ) : (
-        projects.map((project) => (
-          <Card
-            key={project.project_id}
-            title={project.name}
-            style={{ marginBottom: 16 }}
-          >
-            {!(project.sandboxes || []).length && (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="该项目暂无沙箱，需先在沙箱列表提交创建申请并通过审核"
-              >
-                <Button type="primary" onClick={() => history.push(sandboxListPageUrl())}>
-                  去申请沙箱
-                </Button>
-              </Empty>
-            )}
-            <Row gutter={[16, 16]}>
-              {(project.sandboxes || []).map((sandbox: DataSandboxRecord) => (
-                <Col xs={24} md={12} xl={8} key={sandbox.id}>
-                  <Card
-                    size="small"
-                    title={sandbox.name}
-                    extra={
-                      <Tag color={sandbox.status === 'EXPIRED' ? 'error' : 'success'}>
-                        {sandbox.status === 'EXPIRED' ? '过期' : '正常'}
-                      </Tag>
-                    }
+        projects.map((project) => {
+          const sandboxes = (project.sandboxes || []) as DataSandboxRecord[];
+          return (
+            <section key={project.project_id} className={styles.projectSection}>
+              <div className={styles.projectHeader}>
+                <span className={styles.projectName}>{project.name}</span>
+                <span className={styles.projectMeta}>{sandboxes.length} 个沙箱</span>
+              </div>
+              {!sandboxes.length ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="该项目暂无沙箱，需先在沙箱列表提交创建申请并通过审核"
+                >
+                  <Button
+                    type="primary"
+                    onClick={() => history.push(sandboxListPageUrl())}
                   >
-                    <Descriptions size="small" column={1}>
-                      <Descriptions.Item label="资源">
-                        CPU {sandbox.cpu_cores} / 内存 {sandbox.memory_gb}GB / GPU{' '}
-                        {sandbox.gpu_count}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="有效期">
-                        {formatTime(sandbox.expires_at)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="计算任务">
-                        {sandbox.task_count || 0} 个
-                      </Descriptions.Item>
-                    </Descriptions>
-                    {!sandbox.usable && (
-                      <Alert
-                        type="warning"
-                        showIcon
-                        message={sandbox.readOnlyReason || '当前节点只可查看'}
-                        style={{ marginBottom: 8 }}
-                      />
-                    )}
-                    <Space wrap>
-                      <Button
-                        type="primary"
-                        disabled={!sandbox.usable}
-                        onClick={() =>
-                          history.push(
-                            workspaceUrl('directory', {
-                              projectId: project.project_id,
-                              sandboxId: sandbox.id,
-                            }),
-                          )
-                        }
-                      >
-                        进入沙箱
-                      </Button>
-                    </Space>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-          </Card>
-        ))
+                    去申请沙箱
+                  </Button>
+                </Empty>
+              ) : (
+                <div className={styles.sandboxGrid}>
+                  {sandboxes.map((sandbox: DataSandboxRecord) => (
+                    <div className={styles.sandboxCard} key={sandbox.id}>
+                      <div className={styles.sandboxHeader}>
+                        <span className={styles.sandboxName} title={sandbox.name}>
+                          {sandbox.name}
+                        </span>
+                        <Tag
+                          color={sandbox.status === 'EXPIRED' ? 'error' : 'success'}
+                          style={{ marginInlineEnd: 0 }}
+                        >
+                          {sandbox.status === 'EXPIRED' ? '过期' : '正常'}
+                        </Tag>
+                      </div>
+                      <div className={styles.sandboxMeta}>
+                        <div className={styles.metaRow}>
+                          <span className={styles.metaLabel}>资源</span>
+                          <span className={styles.metaValue}>
+                            CPU {sandbox.cpu_cores} · 内存 {sandbox.memory_gb}GB · GPU{' '}
+                            {sandbox.gpu_count}
+                          </span>
+                        </div>
+                        <div className={styles.metaRow}>
+                          <span className={styles.metaLabel}>有效期</span>
+                          <span className={styles.metaValue}>
+                            {formatTime(sandbox.expires_at)}
+                          </span>
+                        </div>
+                        <div className={styles.metaRow}>
+                          <span className={styles.metaLabel}>计算任务</span>
+                          <span className={styles.metaValue}>
+                            {sandbox.task_count || 0} 个
+                          </span>
+                        </div>
+                      </div>
+                      {!sandbox.usable && (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message={sandbox.readOnlyReason || '当前节点只可查看'}
+                          className={styles.sandboxAlert}
+                        />
+                      )}
+                      <div className={styles.sandboxFooter}>
+                        <Button
+                          type="primary"
+                          disabled={!sandbox.usable}
+                          onClick={() =>
+                            history.push(
+                              workspaceUrl('directory', {
+                                projectId: project.project_id,
+                                sandboxId: sandbox.id,
+                              }),
+                            )
+                          }
+                        >
+                          进入沙箱
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          );
+        })
       )}
     </MvpPage>
   );
@@ -454,7 +471,9 @@ export const SandboxWorkspaceComponent = () => {
             onSelect={({ key }) => history.replace(workspaceUrl(key, c))}
           />
         </Layout.Sider>
-        <Layout.Content style={{ padding: 16, overflow: 'auto' }}>{page}</Layout.Content>
+        <Layout.Content style={{ padding: 16, overflow: 'auto' }}>
+          {page}
+        </Layout.Content>
       </Layout>
     </Layout>
   );
