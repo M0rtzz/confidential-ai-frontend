@@ -332,8 +332,10 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
     {
       title: '查看截止时间',
       dataIndex: 'view_until',
-      render: (value: string, row: DataSandboxRecord) =>
-        row._kind === 'result' ? formatTime(value) || '长期' : '-',
+      render: (value: string, row: DataSandboxRecord) => {
+        const time = value || row.access_end;
+        return time ? formatTime(time) : row._kind === 'result' ? '长期' : '-';
+      },
     },
     {
       title: '导出截止时间',
