@@ -91,6 +91,7 @@ const fileToBase64 = (file: File) =>
   });
 
 /** 渲染 header[] + rows[][] 预览表。 */
+
 const renderPreviewTable = (preview: DataSandboxRecord, showRowCount = true) => {
   const header = (preview.header || []) as string[];
   const rows = (preview.rows || []) as string[][];
@@ -1557,6 +1558,13 @@ export const DataDevComponent = () => {
       >
         {detailItem && (
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            {detailItem.runtimeMode === 'SIMULATION' && (
+              <Alert
+                type="info"
+                showIcon
+                message="本次运行在可信执行环境内完成（仿真模式，未取得硬件背书）：明文数据与模型都不出环境，下方只呈现契约允许出域的报告与密文产出台账。"
+              />
+            )}
             <Space wrap>
               <Tag color={statusColors[detailItem.status]}>
                 {statusLabels[detailItem.status] || detailItem.status}
@@ -1587,7 +1595,19 @@ export const DataDevComponent = () => {
             {detailItem.finished_at && (
               <div>完成：{formatTime(detailItem.finished_at)}</div>
             )}
-            <TeeResultCards summaryValue={detailItem.result_summary} />
+            {/* 沙箱任务的可信执行摘要存在 result_preview，详情接口按字段下发；
+                画布节点仍沿用 result_summary。两者都交给同一张结果卡渲染。 */}
+            <TeeResultCards
+              summaryValue={
+                detailItem.result_summary || {
+                  runtimeMode: detailItem.runtimeMode,
+                  attestationVerified: detailItem.attestationVerified,
+                  reports: detailItem.reports,
+                  encryptedOutputs: detailItem.encryptedOutputs,
+                }
+              }
+            />
+
             {detailItem.retry_count > 0 && (
               <div>重试次数：{detailItem.retry_count}</div>
             )}
@@ -1699,6 +1719,12 @@ export const DataDevComponent = () => {
                 )}
               </Space>
               {renderPreviewTable(resultItem.preview, false)}
+              <TeeResultCards summaryValue={resultItem.preview} />
+              {!resultItem.preview?.header?.length &&
+                !resultItem.preview?.reports?.length &&
+                !resultItem.preview?.encryptedOutputs?.length && (
+                  <Typography.Text type="secondary">本次运行没有产出</Typography.Text>
+                )}
               {resultItem.runMode === 'PROD' && (
                 <Alert
                   type="warning"
