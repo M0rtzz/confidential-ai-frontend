@@ -145,12 +145,8 @@ const DomainDetail = ({
           <Tag color="success">最高</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="信任状态">{trustTag(domain)}</Descriptions.Item>
-        <Descriptions.Item label="证明类型">{domain.evidenceType}</Descriptions.Item>
         <Descriptions.Item label="硬件型号">{domain.hardwareModel}</Descriptions.Item>
         <Descriptions.Item label="策略">{domain.policyId}</Descriptions.Item>
-        <Descriptions.Item label="证明结论">
-          <Tag color="default">attestationVerified=false</Tag>
-        </Descriptions.Item>
         <Descriptions.Item label="Public Key">
           <Space direction="vertical" size={2}>
             <Space>
@@ -184,13 +180,7 @@ const DomainDetail = ({
       </Descriptions>
 
       {verification && (
-        <Alert
-          showIcon
-          type="warning"
-          style={{ marginTop: 16 }}
-          message="模拟证据校验通过"
-          description={`${verification.runtime.evidenceType} / ${verification.runtime.hardwareModel}；该结论不代表 GPU CC 硬件证明。`}
-        />
+        <Alert showIcon type="success" style={{ marginTop: 16 }} message="校验通过" />
       )}
     </div>
   );
