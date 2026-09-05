@@ -6,7 +6,7 @@ import {
   sha256,
   toArrayBuffer,
 } from './hash';
-import { randomId } from './random';
+import { assertCryptoAvailable, randomId } from './random';
 import type { HpkeEnvelope, SessionCryptoIdentity } from './types';
 
 const DEFAULT_OUTPUT_INFO = new TextEncoder().encode('ds-confidential/v1/odk');
@@ -134,6 +134,7 @@ const restoreIdentity = (stored: StoredIdentity): SessionCryptoIdentity => ({
 let currentIdentity: Promise<SessionCryptoIdentity> | undefined;
 
 const createIdentity = async (): Promise<SessionCryptoIdentity> => {
+  assertCryptoAvailable();
   const encryptionKeys = await hpkeSuite.kem.generateKeyPair();
   const encryptionPublicKey = bytesToBase64Url(
     await hpkeSuite.kem.serializePublicKey(encryptionKeys.publicKey),

@@ -35,6 +35,7 @@ import {
   CONTENT_ENCRYPTION_CAPABILITIES,
   cryptoAdapter,
   decryptEncryptedFile,
+  decryptEncryptedText,
   getSessionIdentity,
   sha256,
   type ContentEncryptionAlgorithm,
@@ -49,6 +50,10 @@ import {
   type ConfidentialAssetType,
 } from '@/services/confidential-assets';
 import { ConfidentialComputeApi } from '@/services/confidential-compute';
+import {
+  ConfidentialTrainingApi,
+  type LlmProvider,
+} from '@/services/confidential-training';
 
 type UploadForm = {
   name: string;
@@ -61,13 +66,10 @@ type UploadForm = {
   rowCount?: number;
 };
 
-const irisCsv = `sepal_length,sepal_width,petal_length,petal_width,species
-5.1,3.5,1.4,0.2,setosa
-4.9,3.0,1.4,0.2,setosa
-5.8,2.7,4.1,1.0,versicolor
-6.4,3.2,4.5,1.5,versicolor
-6.3,3.3,6.0,2.5,virginica
-5.8,2.7,5.1,1.9,virginica`;
+const irisCsv = `SepalLengthCm,SepalWidthCm,PetalLengthCm,PetalWidthCm,Species
+5.1,3.5,1.4,0.2,Iris-setosa
+5.8,2.7,4.1,1.0,Iris-versicolor
+6.3,3.3,6.0,2.5,Iris-virginica`;
 
 const modelPreview = `safetensors / IrisMLP
 classifier.0.weight  F32 [8, 4]  [0.124, -0.318, 0.442, 0.091, …]
@@ -350,6 +352,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
   const [aiMode, setAiMode] = useState(false);
   const [generatedCsv, setGeneratedCsv] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [providers, setProviders] = useState<LlmProvider[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -367,7 +370,11 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await ConfidentialAssetApi.list();
+      const [rows, providerRows] = await Promise.all([
+        ConfidentialAssetApi.list(),
+        ConfidentialTrainingApi.providers(),
+      ]);
+      setProviders(providerRows);
       setAssets(rows.length ? rows : demoAssets);
       setUsingDemo(rows.length === 0);
     } catch {
@@ -417,20 +424,29 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
     }
     setGenerating(true);
     try {
+      const providerId = values.providerId || 'platform-model-api';
+      const provider = providers.find((item) => item.providerId === providerId);
+      let apiKey: string | undefined;
+      if (provider?.credentialConfigured) {
+        const configured = await ConfidentialTrainingApi.providerCredential(providerId);
+        if (!configured.encryptedCredential) throw new Error('模型 API 凭据密文不存在');
+        apiKey = await decryptEncryptedText(configured.encryptedCredential);
+      }
       const result = await ConfidentialAssetApi.generateData({
-        providerId: values.providerId || 'platform-model-api',
+        providerId,
         prompt: values.prompt,
         fields: (values.fields || '')
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
         rowCount: values.rowCount || 20,
+        apiKey,
       });
+      apiKey = undefined;
       setGeneratedCsv(result.csv);
       message.success(`已通过大模型 API 生成并校验 ${result.rowCount} 行 CSV 数据`);
-    } catch {
-      setGeneratedCsv(irisCsv);
-      message.success('已通过演示大模型适配器生成并校验 CSV 数据');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '大模型数据生成失败');
     } finally {
       setGenerating(false);
     }
@@ -727,10 +743,10 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
                 rules={[{ required: true }]}
               >
                 <Select
-                  options={[
-                    { label: '平台大模型 API（已配置）', value: 'platform-model-api' },
-                    { label: '备用大模型 API（已配置）', value: 'backup-model-api' },
-                  ]}
+                  options={providers.map((item) => ({
+                    label: `${item.providerName} · ${item.modelId}`,
+                    value: item.providerId,
+                  }))}
                 />
               </Form.Item>
               <Form.Item

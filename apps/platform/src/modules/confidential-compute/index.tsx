@@ -2,6 +2,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CopyOutlined,
+  ExperimentOutlined,
   LockOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
@@ -23,6 +24,7 @@ import {
   Typography,
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { history } from 'umi';
 
 import { mockPublicKeys } from '@/mocks/publicKeys';
 import { mockTrustedDomains } from '@/mocks/trustedDomains';
@@ -569,6 +571,13 @@ export const ConfidentialComputeComponent = () => {
             onClick={() => void refresh()}
           />
         </Tooltip>
+        <Button
+          type="primary"
+          icon={<ExperimentOutlined />}
+          onClick={() => history.push('/confidential-training')}
+        >
+          节点训练任务
+        </Button>
       </div>
       <div className={styles.surface}>
         <Tabs

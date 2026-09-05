@@ -260,3 +260,32 @@ export const decryptEncryptedFile = async (payload: EncryptedFilePayload) => {
     dek.fill(0);
   }
 };
+
+export const decryptEncryptedText = async (payload: EncryptedPayload) => {
+  const identity = await getSessionIdentity();
+  const dek = await identity.openSealedDek(
+    payload.keyEnvelope,
+    canonicalBytes(payload.aad),
+  );
+  try {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      toArrayBuffer(dek),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt'],
+    );
+    const plaintext = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: toArrayBuffer(base64UrlToBytes(payload.nonce)),
+        additionalData: toArrayBuffer(canonicalBytes(payload.aad)),
+      },
+      key,
+      toArrayBuffer(base64UrlToBytes(payload.ciphertext)),
+    );
+    return new TextDecoder().decode(plaintext);
+  } finally {
+    dek.fill(0);
+  }
+};
