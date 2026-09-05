@@ -9,6 +9,10 @@ request.interceptors.request.use((url, options) => {
   const token = localStorage.getItem('User-Token') || '';
   const isFormData =
     typeof FormData !== 'undefined' && options.data instanceof FormData;
+  const isBinary =
+    options.data instanceof Uint8Array ||
+    options.data instanceof ArrayBuffer ||
+    (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(options.data));
   return {
     url: `${url}`,
     options: {
@@ -17,7 +21,8 @@ request.interceptors.request.use((url, options) => {
       credentials: 'include',
       interceptors: true,
       headers: {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(isFormData || isBinary ? {} : { 'Content-Type': 'application/json' }),
+        ...(options.headers || {}),
         'User-Token': token,
         'Trace-Id': traceId,
       },

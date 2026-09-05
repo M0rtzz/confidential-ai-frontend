@@ -205,7 +205,18 @@ export const HeaderComponent = () => {
             })}
             onClick={() => {
               if (isAutonomyMode) {
-                history.push(`/edge?ownerId=${ownerId}&tab=workbench`);
+                const resolvedOwnerId = ownerId || loginService.userInfo?.ownerId;
+                if (resolvedOwnerId) {
+                  history.push(
+                    `/edge?ownerId=${encodeURIComponent(
+                      String(resolvedOwnerId),
+                    )}&tab=my-project`,
+                  );
+                } else {
+                  history.push('/home?tab=project-management');
+                }
+              } else {
+                history.push('/home?tab=project-management');
               }
             }}
           >

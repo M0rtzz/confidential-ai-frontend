@@ -3,7 +3,7 @@ import type { TrustedDomain } from '@/security/crypto';
 export const mockTrustedDomains: TrustedDomain[] = [
   {
     id: 'a100-domain-a',
-    name: 'A100 模拟域 A',
+    name: '可信域A',
     status: 'active',
     trustStatus: 'trusted',
     securityProfile: 'a100-sim',
@@ -17,7 +17,7 @@ export const mockTrustedDomains: TrustedDomain[] = [
   },
   {
     id: 'a100-domain-b',
-    name: 'A100 模拟域 B',
+    name: '可信域B',
     status: 'active',
     trustStatus: 'trusted',
     securityProfile: 'a100-sim',
@@ -28,19 +28,5 @@ export const mockTrustedDomains: TrustedDomain[] = [
     purpose: 'inference',
     warning: '无 GPU CC 硬件隔离；仅允许公开或已接受降级风险的资产',
     boundResources: ['Model Beta'],
-  },
-  {
-    id: 'a100-domain-c',
-    name: 'A100 阻断域',
-    status: 'offline',
-    trustStatus: 'blocked',
-    securityProfile: 'a100-sim',
-    evidenceType: 'SIMULATED_LAB_V1',
-    simulated: true,
-    hardwareModel: 'NVIDIA A100',
-    policyId: 'policy/a100-sim/v1',
-    purpose: 'disabled',
-    warning: '域策略已阻断，禁止获取公钥、上传和执行',
-    boundResources: [],
   },
 ];

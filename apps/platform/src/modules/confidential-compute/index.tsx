@@ -543,6 +543,10 @@ export const ConfidentialComputeComponent = () => {
 
   useEffect(() => void refresh(), [refresh]);
 
+  const visibleDomains = (domains.length ? domains : mockTrustedDomains).filter(
+    (domain) => domain.trustStatus !== 'blocked',
+  );
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -575,27 +579,23 @@ export const ConfidentialComputeComponent = () => {
             {
               key: 'assets',
               label: '数据与模型权重管理',
-              children: (
-                <AssetManagementPanel
-                  domains={domains.length ? domains : mockTrustedDomains}
-                />
-              ),
+              children: <AssetManagementPanel domains={visibleDomains} />,
             },
             {
               key: 'domains',
               label: '可信域',
               children: (
-                <DomainPanel domains={domains} loading={loading} adapterSource="api" />
+                <DomainPanel
+                  domains={visibleDomains}
+                  loading={loading}
+                  adapterSource="api"
+                />
               ),
             },
             {
               key: 'protocol',
               label: '协议验证',
-              children: (
-                <ProtocolPanel
-                  domains={domains.length ? domains : mockTrustedDomains}
-                />
-              ),
+              children: <ProtocolPanel domains={visibleDomains} />,
             },
             {
               key: 'results',

@@ -1,5 +1,4 @@
 import {
-  ApiOutlined,
   CheckCircleOutlined,
   ExperimentOutlined,
   LockOutlined,
@@ -271,9 +270,6 @@ export const ConfidentialTrainingComponent = () => {
         </Col>
         <Col>
           <Space>
-            <Button icon={<ApiOutlined />} onClick={() => setProviderOpen(true)}>
-              大模型 API 配置
-            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
