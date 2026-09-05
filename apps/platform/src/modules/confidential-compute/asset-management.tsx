@@ -420,7 +420,6 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
     setGenerating(true);
     try {
       const providerId = values.providerId || 'platform-model-api';
-      let apiKey = values.apiKey?.trim();
       const result = await ConfidentialAssetApi.generateData({
         providerId,
         prompt: values.prompt,
@@ -429,16 +428,26 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
           .map((item) => item.trim())
           .filter(Boolean),
         rowCount: values.rowCount || 20,
-        apiKey,
+        apiKey: values.apiKey?.trim(),
         baseUrl: values.baseUrl?.trim(),
         modelId: values.modelId?.trim(),
       });
-      apiKey = undefined;
-      form.setFieldValue('apiKey', '');
       setGeneratedCsv(result.csv);
       message.success(`已通过大模型 API 生成并校验 ${result.rowCount} 行 CSV 数据`);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '大模型数据生成失败');
+      const responseError = error as {
+        data?: { status?: { msg?: string }; message?: string };
+        response?: { status?: number };
+      };
+      const detail =
+        responseError.data?.status?.msg ||
+        responseError.data?.message ||
+        (responseError.response?.status
+          ? `HTTP ${responseError.response.status}`
+          : undefined);
+      message.error(
+        detail || (error instanceof Error ? error.message : '大模型数据生成失败'),
+      );
     } finally {
       setGenerating(false);
     }
@@ -516,6 +525,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       setStage('已完成');
       setProgress(100);
       message.success('密文已保存到受管存储节点');
+      form.setFieldValue('apiKey', '');
       setUploadOpen(false);
       await refresh();
     } catch (error) {
@@ -724,7 +734,12 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
         okText="确认加密并上传"
         confirmLoading={submitting}
         onOk={() => void upload()}
-        onCancel={() => !submitting && setUploadOpen(false)}
+        onCancel={() => {
+          if (!submitting) {
+            form.setFieldValue('apiKey', '');
+            setUploadOpen(false);
+          }
+        }}
       >
         <Form form={form} layout="vertical">
           {aiMode ? (
