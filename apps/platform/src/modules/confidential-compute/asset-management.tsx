@@ -35,7 +35,6 @@ import {
   CONTENT_ENCRYPTION_CAPABILITIES,
   cryptoAdapter,
   decryptEncryptedFile,
-  decryptEncryptedText,
   getSessionIdentity,
   sha256,
   type ContentEncryptionAlgorithm,
@@ -50,10 +49,6 @@ import {
   type ConfidentialAssetType,
 } from '@/services/confidential-assets';
 import { ConfidentialComputeApi } from '@/services/confidential-compute';
-import {
-  ConfidentialTrainingApi,
-  type LlmProvider,
-} from '@/services/confidential-training';
 
 type UploadForm = {
   name: string;
@@ -61,6 +56,9 @@ type UploadForm = {
   domainId: string;
   algorithm: ContentEncryptionAlgorithm;
   providerId?: string;
+  baseUrl?: string;
+  modelId?: string;
+  apiKey?: string;
   prompt?: string;
   fields?: string;
   rowCount?: number;
@@ -352,7 +350,6 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
   const [aiMode, setAiMode] = useState(false);
   const [generatedCsv, setGeneratedCsv] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [providers, setProviders] = useState<LlmProvider[]>([]);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -370,11 +367,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [rows, providerRows] = await Promise.all([
-        ConfidentialAssetApi.list(),
-        ConfidentialTrainingApi.providers(),
-      ]);
-      setProviders(providerRows);
+      const rows = await ConfidentialAssetApi.list();
       setAssets(rows.length ? rows : demoAssets);
       setUsingDemo(rows.length === 0);
     } catch {
@@ -411,6 +404,8 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       algorithm: 'AES-256-GCM',
       rowCount: 20,
       providerId: 'platform-model-api',
+      baseUrl: 'http://host.docker.internal:39089/v1',
+      modelId: '',
       fields: 'sepal_length,sepal_width,petal_length,petal_width,species',
     });
     setUploadOpen(true);
@@ -425,13 +420,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
     setGenerating(true);
     try {
       const providerId = values.providerId || 'platform-model-api';
-      const provider = providers.find((item) => item.providerId === providerId);
-      let apiKey: string | undefined;
-      if (provider?.credentialConfigured) {
-        const configured = await ConfidentialTrainingApi.providerCredential(providerId);
-        if (!configured.encryptedCredential) throw new Error('模型 API 凭据密文不存在');
-        apiKey = await decryptEncryptedText(configured.encryptedCredential);
-      }
+      let apiKey = values.apiKey?.trim();
       const result = await ConfidentialAssetApi.generateData({
         providerId,
         prompt: values.prompt,
@@ -441,8 +430,11 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
           .filter(Boolean),
         rowCount: values.rowCount || 20,
         apiKey,
+        baseUrl: values.baseUrl?.trim(),
+        modelId: values.modelId?.trim(),
       });
       apiKey = undefined;
+      form.setFieldValue('apiKey', '');
       setGeneratedCsv(result.csv);
       message.success(`已通过大模型 API 生成并校验 ${result.rowCount} 行 CSV 数据`);
     } catch (error) {
@@ -738,15 +730,19 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
           {aiMode ? (
             <>
               <Form.Item
-                label="大模型 API"
-                name="providerId"
+                label="模型 API 地址"
+                name="baseUrl"
                 rules={[{ required: true }]}
               >
-                <Select
-                  options={providers.map((item) => ({
-                    label: `${item.providerName} · ${item.modelId}`,
-                    value: item.providerId,
-                  }))}
+                <Input placeholder="https://api.deepseek.com 或 http://host.docker.internal:39089/v1" />
+              </Form.Item>
+              <Form.Item label="模型名称（留空自动发现）" name="modelId">
+                <Input placeholder="deepseek-chat" />
+              </Form.Item>
+              <Form.Item label="API Key（仅本次生成使用）" name="apiKey">
+                <Input.Password
+                  autoComplete="new-password"
+                  placeholder="DeepSeek / OpenAI API Key"
                 />
               </Form.Item>
               <Form.Item

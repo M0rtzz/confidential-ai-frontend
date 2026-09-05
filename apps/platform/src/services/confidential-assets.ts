@@ -90,6 +90,8 @@ export const ConfidentialAssetApi = {
     fields: string[];
     rowCount: number;
     apiKey?: string;
+    baseUrl?: string;
+    modelId?: string;
   }) =>
     post<{ providerId: string; format: 'CSV'; rowCount: number; csv: string }>(
       '/confidential-assets/generate-data',

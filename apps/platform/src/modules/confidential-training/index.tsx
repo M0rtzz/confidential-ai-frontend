@@ -108,20 +108,23 @@ export const ConfidentialTrainingComponent = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [taskRows, assetRows, providerRows] = await Promise.all([
+      const [taskResult, assetResult, providerResult] = await Promise.allSettled([
         ConfidentialTrainingApi.list(),
         ConfidentialAssetApi.list(),
         ConfidentialTrainingApi.providers(),
       ]);
+      const taskRows = taskResult.status === 'fulfilled' ? taskResult.value : [];
+      const assetRows = assetResult.status === 'fulfilled' ? assetResult.value : [];
       setTasks(taskRows);
       setAssets(assetRows);
-      setProviders(providerRows);
+      setProviders(providerResult.status === 'fulfilled' ? providerResult.value : []);
       if (detail) {
         const selected = taskRows.find((item) => item.taskId === detail.taskId);
         if (selected) setDetail(selected);
       }
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '训练任务加载失败');
+      if (taskResult.status === 'rejected' || assetResult.status === 'rejected') {
+        message.error('训练任务或机密资产加载失败，请刷新后重试');
+      }
     } finally {
       setLoading(false);
     }
@@ -414,6 +417,23 @@ export const ConfidentialTrainingComponent = () => {
           message="每个新任务都会创建新的数据申请和权重申请；历史授权不会复用。"
           style={{ marginBottom: 16 }}
         />
+        {(!dataAssets.length || !modelAssets.length) && (
+          <Alert
+            showIcon
+            type="info"
+            message="尚未发现可用于训练的真实加密资产"
+            description="请先在“数据与模型权重管理”中完成 CSV 和 safetensors 权重的加密上传；展示用示例卡片不会作为训练输入。"
+            action={
+              <Button
+                size="small"
+                onClick={() => history.push('/confidential-compute')}
+              >
+                去加密上传
+              </Button>
+            }
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Form form={taskForm} layout="vertical">
           <Form.Item name="taskName" label="任务名称" rules={[{ required: true }]}>
             <Input />
@@ -425,12 +445,15 @@ export const ConfidentialTrainingComponent = () => {
             <Col span={12}>
               <Form.Item
                 name="dataAssetVersionId"
-                label="加密数据版本"
+                label={`加密数据版本（${dataAssets.length}）`}
                 rules={[{ required: true }]}
               >
                 <Select
+                  showSearch
+                  optionFilterProp="label"
+                  notFoundContent="暂无已加密 CSV 数据"
                   options={dataAssets.map((item) => ({
-                    label: `${item.name} · v${item.version}`,
+                    label: `${item.name} · v${item.version} · ${item.domainId}`,
                     value: item.assetVersionId,
                   }))}
                 />
@@ -439,12 +462,15 @@ export const ConfidentialTrainingComponent = () => {
             <Col span={12}>
               <Form.Item
                 name="modelAssetVersionId"
-                label="加密模型权重版本"
+                label={`加密模型权重版本（${modelAssets.length}）`}
                 rules={[{ required: true }]}
               >
                 <Select
+                  showSearch
+                  optionFilterProp="label"
+                  notFoundContent="暂无已加密模型权重"
                   options={modelAssets.map((item) => ({
-                    label: `${item.name} · v${item.version}`,
+                    label: `${item.name} · v${item.version} · ${item.domainId}`,
                     value: item.assetVersionId,
                   }))}
                 />
