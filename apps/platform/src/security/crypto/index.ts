@@ -5,5 +5,6 @@ export * from './dekVault';
 export * from './hash';
 export * from './outputCrypto';
 export * from './publicKeyService';
+export * from './random';
 export * from './sessionIdentity';
 export * from './types';

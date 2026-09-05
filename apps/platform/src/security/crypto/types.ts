@@ -123,6 +123,8 @@ export type SessionCryptoIdentity = {
   sign: (value: unknown) => Promise<string>;
   /** Opens a HPKE envelope using the in-memory UEK private key. */
   openEnvelope: (envelope: HpkeEnvelope & { aad: string }) => Promise<Uint8Array>;
+  /** Opens an asset DEK using reconstructed manifest AAD. */
+  openSealedDek: (envelope: HpkeEnvelope, aad: Uint8Array) => Promise<Uint8Array>;
 };
 
 export type EncryptedExecutionOutput = {

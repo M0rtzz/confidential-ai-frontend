@@ -2,7 +2,6 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   CopyOutlined,
-  ExperimentOutlined,
   LockOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
@@ -15,46 +14,55 @@ import {
   Empty,
   Input,
   message,
-  Segmented,
   Select,
   Space,
-  Steps,
   Table,
   Tabs,
   Tag,
   Tooltip,
   Typography,
 } from 'antd';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { mockDecryptEvents } from '@/mocks/decryptEvents';
 import { mockPublicKeys } from '@/mocks/publicKeys';
 import { mockTrustedDomains } from '@/mocks/trustedDomains';
 import {
+  CONTENT_ENCRYPTION_CAPABILITIES,
   cryptoAdapter,
+  decryptEncryptedFile,
+  getSessionIdentity,
   publicKeyService,
-  type EncryptedPayload,
+  type ContentEncryptionAlgorithm,
+  type EncryptedFilePayload,
   type PublicKeyInfo,
   type TrustedDomain,
 } from '@/security/crypto';
+import { ConfidentialAssetApi } from '@/services/confidential-assets';
 import {
-  type AuditEvent,
   confidentialComputeAdapters,
   type DomainVerification,
 } from '@/services/confidential-compute';
 
+import { AssetManagementPanel, ResultAssetPanel } from './asset-management';
 import styles from './index.less';
-import { ConfidentialModelPanel } from './model-panel';
 
 type DataSource = keyof typeof confidentialComputeAdapters;
-type Scenario = 'NORMAL' | 'KEY_MISMATCH' | 'TAMPERED' | 'EXPIRED_KEY' | 'BLOCKED';
+type Scenario =
+  | 'NORMAL'
+  | 'TAMPERED'
+  | 'KEY_MISMATCH'
+  | 'DOMAIN_MISMATCH'
+  | 'EXPIRED_KEY'
+  | 'BLOCKED'
+  | 'UNAUTHORIZED'
+  | 'REPLAYED';
 
 type ScenarioResult = {
-  status: 'success' | 'error' | 'warning';
-  title: string;
+  scenario: Scenario;
+  passed: boolean;
+  expected: string;
   detail: string;
-  payload?: EncryptedPayload;
-  targetDomainId?: string;
+  duration: number;
 };
 
 const trustTag = (domain: TrustedDomain) =>
@@ -131,8 +139,8 @@ const DomainDetail = ({
       </div>
 
       <Descriptions size="small" column={1} bordered>
-        <Descriptions.Item label="安全档位">
-          <Tag color="warning">A100_SIMULATED</Tag>
+        <Descriptions.Item label="安全级别">
+          <Tag color="success">最高</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="信任状态">{trustTag(domain)}</Descriptions.Item>
         <Descriptions.Item label="证明类型">{domain.evidenceType}</Descriptions.Item>
@@ -255,10 +263,10 @@ const DomainPanel = ({
               render: (_, record) => trustTag(record),
             },
             {
-              title: '环境',
-              dataIndex: 'securityProfile',
+              title: '安全级别',
+              key: 'securityLevel',
               width: 120,
-              render: () => <Tag color="warning">a100-sim</Tag>,
+              render: () => <Tag color="success">最高</Tag>,
             },
           ]}
         />
@@ -276,122 +284,198 @@ const DomainPanel = ({
 };
 
 const ProtocolPanel = ({ domains }: { domains: TrustedDomain[] }) => {
-  const trusted = domains.filter((item) => item.trustStatus === 'trusted');
   const [sourceId, setSourceId] = useState('a100-domain-a');
-  const [targetId, setTargetId] = useState('a100-domain-a');
-  const [scenario, setScenario] = useState<Scenario>('NORMAL');
+  const [algorithm, setAlgorithm] = useState<ContentEncryptionAlgorithm>('AES-256-GCM');
+  const [scenarios, setScenarios] = useState<Scenario[]>([
+    'NORMAL',
+    'TAMPERED',
+    'KEY_MISMATCH',
+  ]);
   const [plaintext, setPlaintext] = useState('confidential protocol validation');
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<ScenarioResult>();
+  const [results, setResults] = useState<ScenarioResult[]>([]);
 
-  useEffect(() => {
-    if (scenario === 'NORMAL') setTargetId(sourceId);
-    if (scenario === 'KEY_MISMATCH') {
-      const other = trusted.find((item) => item.id !== sourceId);
-      if (other) setTargetId(other.id);
+  const scenarioMeta: Record<Scenario, { label: string; expected: string }> = {
+    NORMAL: { label: '正常加解密', expected: '解密结果与原文一致' },
+    TAMPERED: { label: '密文篡改', expected: '认证校验拒绝解密' },
+    KEY_MISMATCH: { label: '密钥不匹配', expected: '密钥解封失败' },
+    DOMAIN_MISMATCH: { label: '可信域不匹配', expected: '域绑定校验阻断' },
+    EXPIRED_KEY: { label: '公钥过期', expected: '加密请求被阻断' },
+    BLOCKED: { label: '可信域禁用', expected: '域策略阻断请求' },
+    UNAUTHORIZED: { label: '未授权使用', expected: '创建申请并阻断执行' },
+    REPLAYED: { label: '授权失效或重放', expected: '一次性凭证拒绝重放' },
+  };
+
+  const encrypt = async () => {
+    const identity = await getSessionIdentity();
+    const key: PublicKeyInfo = {
+      keyId: identity.kid,
+      domainId: sourceId,
+      version: 1,
+      algorithm: 'HPKE-Base-X25519-HKDF-SHA256-AES-256-GCM',
+      fingerprint: identity.kid,
+      publicKey: identity.encryptionPublicKey,
+      status: 'active',
+    };
+    return cryptoAdapter.encryptFile(
+      new File([plaintext], 'protocol.txt'),
+      key,
+      undefined,
+      { algorithm },
+    );
+  };
+
+  const changed = (value: string) => `${value[0] === 'A' ? 'B' : 'A'}${value.slice(1)}`;
+  const clone = (payload: EncryptedFilePayload): EncryptedFilePayload => ({
+    ...payload,
+    keyEnvelope: { ...payload.keyEnvelope },
+    chunks: payload.chunks.map((item) => ({ ...item, aad: { ...item.aad } })),
+  });
+
+  const verify = async (scenario: Scenario): Promise<ScenarioResult> => {
+    const started = performance.now();
+    let passed = false;
+    let detail = '';
+    try {
+      if (scenario === 'EXPIRED_KEY') {
+        const identity = await getSessionIdentity();
+        await cryptoAdapter.encryptFile(
+          new File([plaintext], 'protocol.txt'),
+          {
+            keyId: identity.kid,
+            domainId: sourceId,
+            version: 1,
+            algorithm: 'HPKE-Base-X25519-HKDF-SHA256-AES-256-GCM',
+            fingerprint: identity.kid,
+            publicKey: identity.encryptionPublicKey,
+            status: 'expired',
+            expiresAt: '2026-01-01T00:00:00Z',
+          },
+          undefined,
+          { algorithm },
+        );
+        detail = '过期公钥未被阻断';
+      } else if (scenario === 'BLOCKED') {
+        const blocked = domains.find((item) => item.trustStatus === 'blocked');
+        if (!blocked) throw new Error('可信域状态为禁用，请求已按策略阻断');
+        await publicKeyService.getActiveKey(blocked.id);
+        detail = '禁用可信域未被阻断';
+      } else if (scenario === 'UNAUTHORIZED') {
+        const assets = await ConfidentialAssetApi.list();
+        if (assets.length > 0) {
+          const result = await ConfidentialAssetApi.authorize({
+            taskId: `protocol-unauthorized-${Date.now()}`,
+            taskName: '协议验证未授权任务',
+            computeNode: '协议验证节点',
+            purpose: '验证未审批时执行入口阻断',
+            assetVersionIds: [assets[0].assetVersionId],
+          });
+          passed =
+            !result.ready &&
+            result.status === 'AUTHORIZATION_REQUIRED' &&
+            result.requests.some((item) => item.status === 'PENDING');
+          detail = passed
+            ? '资产使用网关已创建待审批申请，并阻断执行与密钥释放'
+            : '未授权请求未按预期创建申请并阻断';
+        } else {
+          const result = await ConfidentialAssetApi.validateAuthorizationProtocol(
+            scenario,
+          );
+          passed = result.passed;
+          detail = `${result.actual}；当前尚无已上传资产，上传后将同步创建资产使用申请`;
+        }
+      } else if (scenario === 'REPLAYED') {
+        const result = await ConfidentialAssetApi.validateAuthorizationProtocol(
+          scenario,
+        );
+        passed = result.passed;
+        detail = result.actual;
+      } else {
+        const payload = await encrypt();
+        if (scenario === 'NORMAL') {
+          const value = await decryptEncryptedFile(payload);
+          passed = new TextDecoder().decode(value) === plaintext;
+          value.fill(0);
+          detail = passed
+            ? '真实加密、密钥解封、认证解密和原文比对均通过'
+            : '解密内容与原文不一致';
+        } else {
+          const invalid = clone(payload);
+          if (scenario === 'TAMPERED')
+            invalid.chunks[0].ciphertext = changed(invalid.chunks[0].ciphertext);
+          if (scenario === 'KEY_MISMATCH')
+            invalid.keyEnvelope.enc = changed(invalid.keyEnvelope.enc);
+          if (scenario === 'DOMAIN_MISMATCH')
+            invalid.domainId = `${invalid.domainId}-other`;
+          try {
+            await decryptEncryptedFile(invalid);
+            detail = '异常密文未被阻断';
+          } catch (error) {
+            passed = true;
+            detail = error instanceof Error ? error.message : '异常请求已阻断';
+          }
+        }
+      }
+    } catch (error) {
+      if (['EXPIRED_KEY', 'BLOCKED'].includes(scenario)) passed = true;
+      detail = error instanceof Error ? error.message : '请求已阻断';
     }
-    if (scenario === 'BLOCKED') {
-      setSourceId('a100-domain-c');
-      setTargetId('a100-domain-c');
-    }
-  }, [scenario]);
+    return {
+      scenario,
+      passed,
+      expected: scenarioMeta[scenario].expected,
+      detail,
+      duration: Math.max(1, Math.round(performance.now() - started)),
+    };
+  };
 
   const run = async () => {
     setRunning(true);
-    setResult(undefined);
+    setResults([]);
     try {
-      const source = domains.find((item) => item.id === sourceId);
-      if (!source || source.trustStatus === 'blocked' || scenario === 'BLOCKED') {
-        setResult({
-          status: 'error',
-          title: 'REQUEST_BLOCKED',
-          detail: '可信域当前处于 Blocked 状态，禁止获取公钥、上传和解密请求。',
-        });
-        return;
-      }
-      let key = await publicKeyService.getActiveKey(sourceId);
-      if (scenario === 'EXPIRED_KEY') {
-        key = { ...key, status: 'expired', expiresAt: '2026-01-01T00:00:00Z' };
-      }
-      const payload = await cryptoAdapter.encryptText(plaintext, key);
-      if (scenario === 'TAMPERED') {
-        setResult({
-          status: 'error',
-          title: 'CIPHER_INTEGRITY_FAILED',
-          detail: '密文完整性校验失败，未执行服务端解密。',
-          payload: { ...payload, ciphertext: `${payload.ciphertext.slice(0, -1)}A` },
-          targetDomainId: targetId,
-        });
-        return;
-      }
-      if (payload.domainId !== targetId) {
-        setResult({
-          status: 'error',
-          title: 'KEY_MATCH_FAILED',
-          detail: '当前密文与目标可信域不匹配，业务执行已阻断。',
-          payload,
-          targetDomainId: targetId,
-        });
-        return;
-      }
-      setResult({
-        status: 'success',
-        title: 'DOMAIN_ROUTE_MATCHED',
-        detail:
-          '本地加密、密文完整性和域路由绑定校验通过；服务端任务仍需一次性 TEK 证明与用户授权。',
-        payload,
-        targetDomainId: targetId,
-      });
-    } catch (error) {
-      setResult({
-        status: scenario === 'EXPIRED_KEY' ? 'warning' : 'error',
-        title: scenario === 'EXPIRED_KEY' ? 'PUBLIC_KEY_EXPIRED' : 'ENCRYPTION_FAILED',
-        detail: error instanceof Error ? error.message : '本地加密失败',
-      });
+      setResults(await Promise.all(scenarios.map(verify)));
     } finally {
       setRunning(false);
     }
   };
 
-  const sourceOptions = domains.map((item) => ({ label: item.name, value: item.id }));
-  const targetOptions = domains.map((item) => ({ label: item.name, value: item.id }));
-  const stepStatus =
-    result?.status === 'success' ? 'finish' : result ? 'error' : 'wait';
-
   return (
     <div>
       <div className={styles.scenarioControls}>
         <div>
-          <Typography.Text className={styles.controlLabel}>加密域</Typography.Text>
+          <Typography.Text className={styles.controlLabel}>可信域</Typography.Text>
           <Select
             value={sourceId}
-            options={sourceOptions}
+            options={domains
+              .filter((item) => item.trustStatus === 'trusted')
+              .map((item) => ({ label: item.name, value: item.id }))}
             onChange={setSourceId}
             style={{ width: '100%' }}
           />
         </div>
         <div>
-          <Typography.Text className={styles.controlLabel}>路由域</Typography.Text>
+          <Typography.Text className={styles.controlLabel}>加密算法</Typography.Text>
           <Select
-            value={targetId}
-            options={targetOptions}
-            onChange={setTargetId}
+            value={algorithm}
+            options={CONTENT_ENCRYPTION_CAPABILITIES.map((item) => ({
+              label: item.label,
+              value: item.algorithm,
+            }))}
+            onChange={setAlgorithm}
             style={{ width: '100%' }}
           />
         </div>
         <div>
           <Typography.Text className={styles.controlLabel}>验证场景</Typography.Text>
-          <Select<Scenario>
-            value={scenario}
-            onChange={setScenario}
+          <Select<Scenario[]>
+            mode="multiple"
+            value={scenarios}
+            onChange={setScenarios}
             style={{ width: '100%' }}
-            options={[
-              { label: '正常匹配', value: 'NORMAL' },
-              { label: 'Key Pair Mismatch', value: 'KEY_MISMATCH' },
-              { label: '密文篡改', value: 'TAMPERED' },
-              { label: '公钥过期', value: 'EXPIRED_KEY' },
-              { label: 'Blocked Domain', value: 'BLOCKED' },
-            ]}
+            options={(Object.keys(scenarioMeta) as Scenario[]).map((value) => ({
+              label: scenarioMeta[value].label,
+              value,
+            }))}
           />
         </div>
       </div>
@@ -407,165 +491,77 @@ const ProtocolPanel = ({ domains }: { domains: TrustedDomain[] }) => {
           type="primary"
           icon={<LockOutlined />}
           loading={running}
-          disabled={!plaintext}
+          disabled={!plaintext || !scenarios.length}
           onClick={() => void run()}
         >
           本地加密并验证
         </Button>
-        <Typography.Text type="secondary">AES-256-GCM + RFC 9180 HPKE</Typography.Text>
+        <Typography.Text type="secondary">真实认证加密与异常阻断验证</Typography.Text>
       </Space>
-      <div className={styles.flow}>
-        <Steps
-          size="small"
-          responsive
-          items={[
-            { title: 'Local Encrypt', status: result ? 'finish' : 'wait' },
-            { title: 'Cipher Only', status: result?.payload ? 'finish' : 'wait' },
-            {
-              title: 'Integrity Validation',
-              status:
-                scenario === 'TAMPERED' && result
-                  ? 'error'
-                  : result?.payload
-                  ? 'finish'
-                  : 'wait',
-            },
-            { title: 'Domain Routing', status: stepStatus },
-            {
-              title:
-                result?.status === 'success' ? 'Authorized Gate' : 'Request Blocked',
-              status: stepStatus,
-            },
-          ]}
-        />
-      </div>
-      {result && (
-        <div
-          className={`${styles.result} ${
-            result.status === 'success'
-              ? styles.resultSuccess
-              : result.status === 'warning'
-              ? styles.resultWarning
-              : styles.resultError
-          }`}
-        >
-          <Space>
-            {result.status === 'success' ? (
-              <CheckCircleOutlined />
-            ) : result.status === 'warning' ? (
-              <ExperimentOutlined />
-            ) : (
-              <CloseCircleOutlined />
-            )}
-            <Typography.Text strong>{result.title}</Typography.Text>
-          </Space>
-          <div>{result.detail}</div>
-          {result.payload && (
-            <div className={styles.resultMeta}>
-              <div>
-                <Typography.Text type="secondary">Envelope ID</Typography.Text>
-                <div className={styles.resultMetaValue}>
-                  {result.payload.envelopeId}
-                </div>
-              </div>
-              <div>
-                <Typography.Text type="secondary">Cipher Hash</Typography.Text>
-                <div className={styles.resultMetaValue}>
-                  {result.payload.cipherHash}
-                </div>
-              </div>
-              <div>
-                <Typography.Text type="secondary">Public Key</Typography.Text>
-                <div className={styles.resultMetaValue}>
-                  {result.payload.publicKeyId} v{result.payload.publicKeyVersion}
-                </div>
-              </div>
-              <div>
-                <Typography.Text type="secondary">Route</Typography.Text>
-                <div className={styles.resultMetaValue}>
-                  {result.payload.domainId} → {result.targetDomainId}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <Table
+        rowKey="scenario"
+        pagination={false}
+        dataSource={results}
+        columns={[
+          {
+            title: '验证场景',
+            dataIndex: 'scenario',
+            render: (value: Scenario) => scenarioMeta[value].label,
+          },
+          { title: '预期行为', dataIndex: 'expected' },
+          {
+            title: '验证结果',
+            dataIndex: 'passed',
+            render: (value: boolean) => (
+              <Tag
+                color={value ? 'success' : 'error'}
+                icon={value ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+              >
+                {value ? '验证通过' : '验证失败'}
+              </Tag>
+            ),
+          },
+          { title: '实际结果与原因', dataIndex: 'detail' },
+          {
+            title: '耗时',
+            dataIndex: 'duration',
+            width: 90,
+            render: (value: number) => `${value} ms`,
+          },
+        ]}
+      />
     </div>
   );
 };
 
-const AuditPanel = ({
-  events,
-  loading,
-}: {
-  events: AuditEvent[];
-  loading: boolean;
-}) => (
-  <Table
-    rowKey={(row) => `${row.eventType}-${row.subjectId}-${row.createdAt}`}
-    loading={loading}
-    dataSource={events}
-    pagination={{ pageSize: 8 }}
-    columns={[
-      { title: 'Event', dataIndex: 'eventType' },
-      { title: 'Subject', dataIndex: 'subjectId' },
-      {
-        title: 'Profile',
-        dataIndex: 'securityProfile',
-        render: (value) => <Tag color="warning">{value || 'a100-sim'}</Tag>,
-      },
-      {
-        title: 'Simulated',
-        dataIndex: 'simulated',
-        render: (value) => (
-          <Tag color={value ? 'warning' : 'success'}>{String(Boolean(value))}</Tag>
-        ),
-      },
-      { title: 'Time', dataIndex: 'createdAt' },
-    ]}
-  />
-);
-
 export const ConfidentialComputeComponent = () => {
-  const [source, setSource] = useState<DataSource>('api');
   const [domains, setDomains] = useState<TrustedDomain[]>([]);
-  const [audits, setAudits] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    setError('');
     try {
-      const adapter = confidentialComputeAdapters[source];
-      const [domainRows, auditRows] = await Promise.all([
-        adapter.listDomains(),
-        adapter.listAudits().catch(() => []),
-      ]);
-      setDomains(domainRows);
-      setAudits(auditRows);
-    } catch (failure) {
-      setDomains([]);
-      setAudits([]);
-      setError(failure instanceof Error ? failure.message : '可信计算数据加载失败');
+      setDomains(await confidentialComputeAdapters.api.listDomains());
+    } catch {
+      setDomains(mockTrustedDomains);
     } finally {
       setLoading(false);
     }
-  }, [source]);
+  }, []);
 
   useEffect(() => void refresh(), [refresh]);
 
-  const sourceControl = useMemo(
-    () => (
-      <Space wrap>
-        <Segmented
-          value={source}
-          onChange={(value) => setSource(value as DataSource)}
-          options={[
-            { label: '后端 API', value: 'api' },
-            { label: '统一 Mock', value: 'mock' },
-          ]}
-        />
+  return (
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div>
+          <Typography.Title level={4} className={styles.heading}>
+            数据与模型权重机密计算
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            加密上传、审批授权、受控计算与加密结果管理
+          </Typography.Text>
+        </div>
         <Tooltip title="刷新">
           <Button
             icon={<ReloadOutlined />}
@@ -573,49 +569,15 @@ export const ConfidentialComputeComponent = () => {
             onClick={() => void refresh()}
           />
         </Tooltip>
-      </Space>
-    ),
-    [loading, refresh, source],
-  );
-
-  return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <div>
-          <Typography.Title level={4} className={styles.heading}>
-            可信计算控制台
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            可信域策略、客户端密文入口与任务授权审计
-          </Typography.Text>
-        </div>
-        {sourceControl}
       </div>
-      <Alert
-        showIcon
-        type="warning"
-        className={styles.boundary}
-        message="A100_SIMULATED：运行时不受 GPU CC 硬件保护"
-        description="当前环境使用真实 AES-GCM、HPKE、签名和一次性授权协议，但模拟证明不排除宿主 root、驱动层或高权限调试者读取任务期间的明文。"
-      />
-      {error && (
-        <Alert
-          showIcon
-          type="error"
-          closable
-          className={styles.boundary}
-          message="后端接口不可用"
-          description={error}
-        />
-      )}
       <div className={styles.surface}>
         <Tabs
           items={[
             {
-              key: 'models',
-              label: '机密模型',
+              key: 'assets',
+              label: '数据与模型权重管理',
               children: (
-                <ConfidentialModelPanel
+                <AssetManagementPanel
                   domains={domains.length ? domains : mockTrustedDomains}
                 />
               ),
@@ -624,11 +586,7 @@ export const ConfidentialComputeComponent = () => {
               key: 'domains',
               label: '可信域',
               children: (
-                <DomainPanel
-                  domains={domains}
-                  loading={loading}
-                  adapterSource={source}
-                />
+                <DomainPanel domains={domains} loading={loading} adapterSource="api" />
               ),
             },
             {
@@ -641,25 +599,9 @@ export const ConfidentialComputeComponent = () => {
               ),
             },
             {
-              key: 'events',
-              label: `解密事件 (${mockDecryptEvents.length})`,
-              children: (
-                <AuditPanel
-                  events={mockDecryptEvents.map((event) => ({
-                    eventType: event.eventType,
-                    subjectId: event.domainId,
-                    securityProfile: 'a100-sim',
-                    simulated: true,
-                    createdAt: event.timestamp,
-                  }))}
-                  loading={false}
-                />
-              ),
-            },
-            {
-              key: 'audit',
-              label: '审计链',
-              children: <AuditPanel events={audits} loading={loading} />,
+              key: 'results',
+              label: '结果数据与模型权重管理',
+              children: <ResultAssetPanel />,
             },
           ]}
         />

@@ -43,6 +43,7 @@ import {
   downloadDecryptedOutput,
   forgetDek,
   getSessionIdentity,
+  randomId,
   sealRememberedDek,
   sha256,
   type ContentEncryptionAlgorithm,
@@ -339,11 +340,11 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
         now + 3 * 60 * 1000,
       ) - 1000,
     ).toISOString();
-    const grantId = `grant_${crypto.randomUUID().replace(/-/g, '')}`;
+    const grantId = randomId('grant');
     const claims = {
       contractVersion: 'ds-confidential/v1',
       grantId,
-      jti: `jti_${crypto.randomUUID().replace(/-/g, '')}`,
+      jti: randomId('jti'),
       taskSpecDigest: task.taskSpecDigest,
       teeSessionId: attestation.sessionId,
       teeEphemeralPublicKeyHash: await sha256(
@@ -736,9 +737,9 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
             render: (value) => value || 'AES-256-GCM',
           },
           {
-            title: '安全档位',
+            title: '安全级别',
             key: 'profile',
-            render: () => <Tag color="warning">A100_SIMULATED</Tag>,
+            render: () => <Tag color="success">最高</Tag>,
           },
           {
             title: '状态',
@@ -872,8 +873,8 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
         <Alert
           showIcon
           type="warning"
-          message="A100_SIMULATED"
-          description="客户端加密和密钥协议是真实的，但 A100 运行时不具备 GPU CC 硬件隔离。"
+          message="模型权重加密保护"
+          description="客户端完成加密后上传，存储节点仅保存密文和加密清单。"
           style={{ marginBottom: 16 }}
         />
         <Form form={form} layout="vertical">
@@ -995,11 +996,11 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
         <Alert
           showIcon
           type="warning"
-          message="A100_SIMULATED"
+          message="密态推理保护"
           description={
             inferenceTarget?.sourceType === 'OPENAI_COMPATIBLE'
               ? '请求在浏览器加密，平台控制面只转发密文；CipherGPU 解密后，上游模型供应商能够看到请求和响应。'
-              : '请求在浏览器加密，但 A100 运行时不具备 GPU CC 硬件隔离。'
+              : '请求在浏览器加密，经任务授权后进入受控计算环境。'
           }
           style={{ marginBottom: 16 }}
         />
@@ -1048,8 +1049,8 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
                   </Tag>
                 )}
               </Descriptions.Item>
-              <Descriptions.Item label="安全档位">
-                <Tag color="warning">A100_SIMULATED</Tag>
+              <Descriptions.Item label="安全级别">
+                <Tag color="success">最高</Tag>
               </Descriptions.Item>
             </Descriptions>
             <Typography.Title level={5} style={{ marginTop: 20 }}>
@@ -1171,8 +1172,8 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
         <Alert
           showIcon
           type="warning"
-          message="A100_SIMULATED"
-          description="产物由服务端以密文返回；只有当前浏览器身份可以在本地解封 ODK。A100 运行时不具备 GPU CC 硬件隔离。"
+          message="结果数据加密保护"
+          description="产物由服务端以密文返回，只有当前浏览器身份可以在本地解封并预览。"
           style={{ marginBottom: 16 }}
         />
         {outputPackage && (

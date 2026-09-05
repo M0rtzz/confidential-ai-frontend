@@ -146,3 +146,47 @@ export const encryptContent = async (
     key.fill(0);
   }
 };
+
+export const decryptContent = async (
+  algorithm: ContentEncryptionAlgorithm,
+  dek: Uint8Array,
+  envelopeId: string,
+  nonce: Uint8Array,
+  ciphertext: ArrayBuffer,
+  aad: unknown,
+) => {
+  const capability = contentEncryptionCapability(algorithm);
+  const key = await deriveContentKey(dek, envelopeId, capability);
+  const aadBytes = canonicalBytes(aad);
+  try {
+    if (algorithm === 'AES-256-GCM') {
+      const imported = await crypto.subtle.importKey(
+        'raw',
+        toArrayBuffer(key),
+        { name: 'AES-GCM' },
+        false,
+        ['decrypt'],
+      );
+      return crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: toArrayBuffer(nonce),
+          additionalData: toArrayBuffer(aadBytes),
+          tagLength: 128,
+        },
+        imported,
+        ciphertext,
+      );
+    }
+    const value = new Uint8Array(ciphertext);
+    if (algorithm === 'AES-256-GCM-SIV')
+      return toArrayBuffer(gcmsiv(key, nonce, aadBytes).decrypt(value));
+    if (algorithm === 'CHACHA20-POLY1305')
+      return toArrayBuffer(chacha20poly1305(key, nonce, aadBytes).decrypt(value));
+    if (algorithm === 'XCHACHA20-POLY1305')
+      return toArrayBuffer(xchacha20poly1305(key, nonce, aadBytes).decrypt(value));
+    return toArrayBuffer(aessiv(key, aadBytes, nonce).decrypt(value));
+  } finally {
+    key.fill(0);
+  }
+};

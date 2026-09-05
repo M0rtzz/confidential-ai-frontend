@@ -1,11 +1,20 @@
 import {
   contentEncryptionCapability,
+  decryptContent,
   DEFAULT_CONTENT_ENCRYPTION_ALGORITHM,
   encryptContent,
 } from './contentEncryption';
 import { rememberDek } from './dekVault';
 import { sealDek } from './envelope';
-import { canonicalBytes, bytesToBase64Url, sha256, toArrayBuffer } from './hash';
+import {
+  base64UrlToBytes,
+  canonicalBytes,
+  bytesToBase64Url,
+  sha256,
+  toArrayBuffer,
+} from './hash';
+import { assertCryptoAvailable, randomId } from './random';
+import { getSessionIdentity } from './sessionIdentity';
 import type {
   CryptoAdapter,
   EncryptedFileChunk,
@@ -17,10 +26,8 @@ import type {
 
 const FILE_CHUNK_SIZE = 8 * 1024 * 1024;
 
-const randomId = (prefix: string) =>
-  `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
-
 const requireActiveKey = (publicKey: PublicKeyInfo) => {
+  assertCryptoAvailable();
   if (publicKey.status !== 'active') {
     throw new Error(
       publicKey.status === 'expired'
@@ -211,3 +218,45 @@ export class BrowserCryptoAdapter implements CryptoAdapter {
 }
 
 export const cryptoAdapter: CryptoAdapter = new BrowserCryptoAdapter();
+
+export const decryptEncryptedFile = async (payload: EncryptedFilePayload) => {
+  const identity = await getSessionIdentity();
+  const manifestBinding = {
+    format: payload.format,
+    envelopeId: payload.envelopeId,
+    contentEncryptionAlgorithm: payload.algorithm,
+    implementationVersion: payload.contentEncryption.implementationVersion,
+    domainId: payload.domainId,
+    publicKeyId: payload.publicKeyId,
+    publicKeyVersion: payload.publicKeyVersion,
+    originalSize: payload.originalSize,
+    chunks: payload.chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+      index,
+      plaintextLength,
+      sha256: chunkHash,
+    })),
+  };
+  const dek = await identity.openSealedDek(
+    payload.keyEnvelope,
+    canonicalBytes(manifestBinding),
+  );
+  try {
+    const plaintext = new Uint8Array(payload.originalSize);
+    let offset = 0;
+    for (const chunk of payload.chunks) {
+      const value = await decryptContent(
+        payload.algorithm,
+        dek,
+        payload.envelopeId,
+        base64UrlToBytes(chunk.nonce),
+        toArrayBuffer(base64UrlToBytes(chunk.ciphertext)),
+        chunk.aad,
+      );
+      plaintext.set(new Uint8Array(value), offset);
+      offset += value.byteLength;
+    }
+    return plaintext;
+  } finally {
+    dek.fill(0);
+  }
+};
