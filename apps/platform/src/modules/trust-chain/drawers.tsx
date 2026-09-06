@@ -5,6 +5,7 @@ import {
   Drawer,
   Empty,
   message,
+  Popover,
   Table,
   Tabs,
   Tag,
@@ -33,6 +34,34 @@ import styles from './index.less';
 import type { TeeEnvironment } from './types';
 
 const { Text, Paragraph } = Typography;
+
+const ScopeList = ({ values, unit }: { values?: string[]; unit: string }) =>
+  values?.length ? (
+    <Popover
+      trigger="click"
+      title={`共 ${values.length} ${unit}`}
+      content={
+        <div
+          style={{
+            maxWidth: 420,
+            maxHeight: 300,
+            overflow: 'auto',
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {values.map((value) => (
+            <div key={value}>{value}</div>
+          ))}
+        </div>
+      }
+    >
+      <Button type="link" size="small">
+        {values.length} {unit}
+      </Button>
+    </Popover>
+  ) : (
+    <span>未提供</span>
+  );
 
 const keyStateColor: Record<string, string> = {
   ACTIVE: 'success',
@@ -307,18 +336,17 @@ export const PolicyDrawer = ({
               {
                 title: '可用列',
                 dataIndex: 'columns',
-                render: (v: string[]) =>
-                  v?.length ? `${v.length} 列：${v.join('、')}` : '未提供',
+                render: (v: string[]) => <ScopeList values={v} unit="列" />,
               },
               {
                 title: '可跑算子',
                 dataIndex: 'operators',
-                render: (v: string[]) => (v || []).join('、') || '-',
+                render: (v: string[]) => <ScopeList values={v} unit="项" />,
               },
               {
                 title: '报告类型',
                 dataIndex: 'reportKinds',
-                render: (v: string[]) => (v || []).join('、') || '-',
+                render: (v: string[]) => <ScopeList values={v} unit="项" />,
               },
               { title: '有效期', dataIndex: 'expiresAt', render: formatTime },
               {
