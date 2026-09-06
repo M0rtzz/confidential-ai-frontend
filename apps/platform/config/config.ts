@@ -77,6 +77,11 @@ export default defineConfig({
   codeSplitting: {
     jsStrategy: 'granularChunks',
   },
+  // RFC 9180 的 X25519 内部依赖 BigInt，压缩目标保持 es2020，
+  // 避免对 HPKE 实现施加不安全的数值转换。
+  jsMinifierOptions: {
+    target: ['chrome80', 'es2020'],
+  },
   // oneApi: {
   //   apps: [
   //     {

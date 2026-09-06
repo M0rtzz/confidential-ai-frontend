@@ -1,0 +1,494 @@
+import {
+  contentEncryptionCapability,
+  decryptContent,
+  DEFAULT_CONTENT_ENCRYPTION_ALGORITHM,
+  encryptContent,
+} from './contentEncryption';
+import { rememberDek } from './dekVault';
+import { sealDek } from './envelope';
+import {
+  base64UrlToBytes,
+  canonicalBytes,
+  bytesToBase64Url,
+  sha256,
+  toArrayBuffer,
+} from './hash';
+import { assertCryptoAvailable, randomId } from './random';
+import { getSessionIdentity } from './sessionIdentity';
+import type {
+  CryptoAdapter,
+  EncryptedFileChunk,
+  EncryptedFileManifestChunk,
+  EncryptedFileManifestPayload,
+  EncryptedFileUploadChunk,
+  EncryptedFilePayload,
+  EncryptedPayload,
+  ContentEncryptionAlgorithm,
+  PublicKeyInfo,
+} from './types';
+
+export const FILE_CHUNK_SIZE = 8 * 1024 * 1024;
+export const STREAMING_FILE_CHUNK_SIZE = 32 * 1024 * 1024;
+
+const requireActiveKey = (publicKey: PublicKeyInfo) => {
+  assertCryptoAvailable();
+  if (publicKey.status !== 'active') {
+    throw new Error(
+      publicKey.status === 'expired'
+        ? '公钥已过期，无法继续加密，请重新获取最新公钥'
+        : '当前可信域公钥不可用，请求已阻断',
+    );
+  }
+  if (publicKey.expiresAt && Date.parse(publicKey.expiresAt) <= Date.now()) {
+    throw new Error('公钥已过期，无法继续加密，请重新获取最新公钥');
+  }
+};
+
+const encryptAesGcm = async (
+  dek: Uint8Array,
+  nonce: Uint8Array,
+  plaintext: ArrayBuffer,
+  aad: unknown,
+) => {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    toArrayBuffer(dek),
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt'],
+  );
+  return crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(nonce),
+      additionalData: toArrayBuffer(canonicalBytes(aad)),
+    },
+    key,
+    plaintext,
+  );
+};
+
+export class BrowserCryptoAdapter implements CryptoAdapter {
+  async hashCipher(cipher: ArrayBuffer | Blob | string) {
+    return sha256(cipher);
+  }
+
+  async encryptText(
+    plaintext: string,
+    publicKey: PublicKeyInfo,
+  ): Promise<EncryptedPayload> {
+    requireActiveKey(publicKey);
+    const envelopeId = randomId('env');
+    const dek = crypto.getRandomValues(new Uint8Array(32));
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const aad = {
+      format: 'ds-envelope/v1',
+      envelopeId,
+      domainId: publicKey.domainId,
+      publicKeyId: publicKey.keyId,
+      publicKeyVersion: publicKey.version,
+    };
+    try {
+      rememberDek(envelopeId, dek);
+      const ciphertext = await encryptAesGcm(
+        dek,
+        nonce,
+        toArrayBuffer(new TextEncoder().encode(plaintext)),
+        aad,
+      );
+      return {
+        format: 'ds-envelope/v1',
+        envelopeId,
+        ciphertext: bytesToBase64Url(ciphertext),
+        cipherHash: await sha256(ciphertext),
+        nonce: bytesToBase64Url(nonce),
+        aad,
+        keyEnvelope: await sealDek(dek, publicKey, canonicalBytes(aad)),
+        domainId: publicKey.domainId,
+        publicKeyId: publicKey.keyId,
+        publicKeyVersion: publicKey.version,
+        algorithm: 'AES-256-GCM',
+      };
+    } finally {
+      dek.fill(0);
+    }
+  }
+
+  async encryptFile(
+    file: File,
+    publicKey: PublicKeyInfo,
+    onProgress?: (progress: number) => void,
+    options?: { algorithm?: ContentEncryptionAlgorithm },
+  ): Promise<EncryptedFilePayload> {
+    requireActiveKey(publicKey);
+    const envelopeId = randomId('env');
+    const algorithm = options?.algorithm || DEFAULT_CONTENT_ENCRYPTION_ALGORITHM;
+    const capability = contentEncryptionCapability(algorithm);
+    const dek = crypto.getRandomValues(new Uint8Array(32));
+    const chunks: EncryptedFileChunk[] = [];
+    let cipherSize = 0;
+    try {
+      rememberDek(envelopeId, dek);
+      for (
+        let offset = 0, index = 0;
+        offset < file.size;
+        offset += FILE_CHUNK_SIZE, index += 1
+      ) {
+        const plaintext = await file
+          .slice(offset, offset + FILE_CHUNK_SIZE)
+          .arrayBuffer();
+        const nonce = crypto.getRandomValues(new Uint8Array(capability.nonceSize));
+        const aad = {
+          format: 'ds-envelope/v2',
+          envelopeId,
+          contentEncryptionAlgorithm: algorithm,
+          implementationVersion: capability.implementationVersion,
+          domainId: publicKey.domainId,
+          publicKeyId: publicKey.keyId,
+          publicKeyVersion: publicKey.version,
+          chunkIndex: index,
+          plaintextLength: plaintext.byteLength,
+        };
+        const ciphertext = await encryptContent(
+          algorithm,
+          dek,
+          envelopeId,
+          nonce,
+          plaintext,
+          aad,
+        );
+        cipherSize += ciphertext.byteLength;
+        chunks.push({
+          index,
+          plaintextLength: plaintext.byteLength,
+          nonce: bytesToBase64Url(nonce),
+          ciphertext: bytesToBase64Url(ciphertext),
+          sha256: await sha256(ciphertext),
+          aad,
+        });
+        onProgress?.(
+          Math.min(
+            100,
+            Math.round(((offset + plaintext.byteLength) / file.size) * 100),
+          ),
+        );
+      }
+      const manifestBinding = {
+        format: 'ds-envelope/v2',
+        envelopeId,
+        contentEncryptionAlgorithm: algorithm,
+        implementationVersion: capability.implementationVersion,
+        domainId: publicKey.domainId,
+        publicKeyId: publicKey.keyId,
+        publicKeyVersion: publicKey.version,
+        originalSize: file.size,
+        chunks: chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+          index,
+          plaintextLength,
+          sha256: chunkHash,
+        })),
+      };
+      return {
+        format: 'ds-envelope/v2',
+        envelopeId,
+        cipherHash: await sha256(canonicalBytes(manifestBinding)),
+        keyEnvelope: await sealDek(
+          dek,
+          publicKey,
+          canonicalBytes(manifestBinding),
+          'ds-envelope/v2',
+        ),
+        domainId: publicKey.domainId,
+        publicKeyId: publicKey.keyId,
+        publicKeyVersion: publicKey.version,
+        algorithm,
+        originalSize: file.size,
+        cipherSize,
+        chunkSize: FILE_CHUNK_SIZE,
+        contentEncryption: {
+          algorithm,
+          keyDerivation: 'HKDF-SHA256',
+          implementationVersion: capability.implementationVersion,
+          keySize: capability.keySize,
+          nonceSize: capability.nonceSize,
+          tagSize: capability.tagSize,
+        },
+        chunks,
+      };
+    } finally {
+      dek.fill(0);
+    }
+  }
+
+  async encryptFileStreaming(
+    file: File,
+    publicKey: PublicKeyInfo,
+    onChunk: (chunk: EncryptedFileUploadChunk) => Promise<void>,
+    onProgress?: (progress: number) => void,
+    options?: {
+      algorithm?: ContentEncryptionAlgorithm;
+      chunkSize?: number;
+    },
+  ): Promise<EncryptedFileManifestPayload> {
+    requireActiveKey(publicKey);
+    const envelopeId = randomId('env');
+    const algorithm = options?.algorithm || DEFAULT_CONTENT_ENCRYPTION_ALGORITHM;
+    const chunkSize = options?.chunkSize || STREAMING_FILE_CHUNK_SIZE;
+    if (!Number.isSafeInteger(chunkSize) || chunkSize <= 0) {
+      throw new Error('流式加密分块大小必须为正整数');
+    }
+    const capability = contentEncryptionCapability(algorithm);
+    const dek = crypto.getRandomValues(new Uint8Array(32));
+    const chunks: EncryptedFileManifestChunk[] = [];
+    let cipherSize = 0;
+    try {
+      rememberDek(envelopeId, dek);
+      for (
+        let offset = 0, index = 0;
+        offset < file.size;
+        offset += chunkSize, index += 1
+      ) {
+        const plaintext = await file.slice(offset, offset + chunkSize).arrayBuffer();
+        const plaintextBytes = new Uint8Array(plaintext);
+        const nonce = crypto.getRandomValues(new Uint8Array(capability.nonceSize));
+        const aad = {
+          format: 'ds-envelope/v2',
+          envelopeId,
+          contentEncryptionAlgorithm: algorithm,
+          implementationVersion: capability.implementationVersion,
+          domainId: publicKey.domainId,
+          publicKeyId: publicKey.keyId,
+          publicKeyVersion: publicKey.version,
+          chunkIndex: index,
+          plaintextLength: plaintext.byteLength,
+        };
+        const ciphertext = new Uint8Array(
+          await encryptContent(algorithm, dek, envelopeId, nonce, plaintext, aad),
+        );
+        const chunkHash = await sha256(ciphertext);
+        const encodedNonce = bytesToBase64Url(nonce);
+        try {
+          await onChunk({
+            index,
+            plaintextLength: plaintext.byteLength,
+            nonce: encodedNonce,
+            ciphertext,
+            sha256: chunkHash,
+            aad,
+          });
+        } finally {
+          // The caller has completed its awaited persistence operation.  Do
+          // not retain plaintext/ciphertext buffers across chunks.
+          plaintextBytes.fill(0);
+          ciphertext.fill(0);
+          nonce.fill(0);
+        }
+        cipherSize += plaintext.byteLength + capability.tagSize;
+        chunks.push({
+          index,
+          plaintextLength: plaintext.byteLength,
+          nonce: encodedNonce,
+          sha256: chunkHash,
+          aad,
+        });
+        onProgress?.(
+          Math.min(
+            100,
+            Math.round(((offset + plaintext.byteLength) / file.size) * 100),
+          ),
+        );
+      }
+      const manifestBinding = {
+        format: 'ds-envelope/v2',
+        envelopeId,
+        contentEncryptionAlgorithm: algorithm,
+        implementationVersion: capability.implementationVersion,
+        domainId: publicKey.domainId,
+        publicKeyId: publicKey.keyId,
+        publicKeyVersion: publicKey.version,
+        originalSize: file.size,
+        chunks: chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+          index,
+          plaintextLength,
+          sha256: chunkHash,
+        })),
+      };
+      return {
+        format: 'ds-envelope/v2',
+        envelopeId,
+        cipherHash: await sha256(canonicalBytes(manifestBinding)),
+        keyEnvelope: await sealDek(
+          dek,
+          publicKey,
+          canonicalBytes(manifestBinding),
+          'ds-envelope/v2',
+        ),
+        domainId: publicKey.domainId,
+        publicKeyId: publicKey.keyId,
+        publicKeyVersion: publicKey.version,
+        algorithm,
+        originalSize: file.size,
+        cipherSize,
+        chunkSize,
+        contentEncryption: {
+          algorithm,
+          keyDerivation: 'HKDF-SHA256',
+          implementationVersion: capability.implementationVersion,
+          keySize: capability.keySize,
+          nonceSize: capability.nonceSize,
+          tagSize: capability.tagSize,
+        },
+        chunks,
+      };
+    } finally {
+      dek.fill(0);
+    }
+  }
+}
+
+export const cryptoAdapter: CryptoAdapter = new BrowserCryptoAdapter();
+
+/** Restore an owner-held file DEK from its server-retained encrypted manifest. */
+export const restoreEncryptedFileDek = async (
+  payload: EncryptedFilePayload | EncryptedFileManifestPayload,
+) => {
+  const identity = await getSessionIdentity();
+  const manifestBinding = {
+    format: payload.format,
+    envelopeId: payload.envelopeId,
+    contentEncryptionAlgorithm: payload.algorithm,
+    implementationVersion: payload.contentEncryption.implementationVersion,
+    domainId: payload.domainId,
+    publicKeyId: payload.publicKeyId,
+    publicKeyVersion: payload.publicKeyVersion,
+    originalSize: payload.originalSize,
+    chunks: payload.chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+      index,
+      plaintextLength,
+      sha256: chunkHash,
+    })),
+  };
+  const dek = await identity.openSealedDek(
+    payload.keyEnvelope,
+    canonicalBytes(manifestBinding),
+  );
+  try {
+    rememberDek(payload.envelopeId, dek);
+  } finally {
+    dek.fill(0);
+  }
+};
+
+export const openEncryptedFileDek = async (
+  payload: EncryptedFilePayload | EncryptedFileManifestPayload,
+) => {
+  const identity = await getSessionIdentity();
+  const manifestBinding = {
+    format: payload.format,
+    envelopeId: payload.envelopeId,
+    contentEncryptionAlgorithm: payload.algorithm,
+    implementationVersion: payload.contentEncryption.implementationVersion,
+    domainId: payload.domainId,
+    publicKeyId: payload.publicKeyId,
+    publicKeyVersion: payload.publicKeyVersion,
+    originalSize: payload.originalSize,
+    chunks: payload.chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+      index,
+      plaintextLength,
+      sha256: chunkHash,
+    })),
+  };
+  return identity.openSealedDek(payload.keyEnvelope, canonicalBytes(manifestBinding));
+};
+
+export const decryptEncryptedFileChunk = async (
+  payload: EncryptedFilePayload | EncryptedFileManifestPayload,
+  chunk: EncryptedFileChunk | EncryptedFileManifestChunk,
+  ciphertext: Uint8Array,
+  dek: Uint8Array,
+) => {
+  if ((await sha256(ciphertext)) !== chunk.sha256) {
+    throw new Error(`密文分块 ${chunk.index} 的 SHA-256 校验失败`);
+  }
+  return new Uint8Array(
+    await decryptContent(
+      payload.algorithm,
+      dek,
+      payload.envelopeId,
+      base64UrlToBytes(chunk.nonce),
+      toArrayBuffer(ciphertext),
+      chunk.aad,
+    ),
+  );
+};
+
+export const decryptEncryptedFile = async (payload: EncryptedFilePayload) => {
+  const identity = await getSessionIdentity();
+  const manifestBinding = {
+    format: payload.format,
+    envelopeId: payload.envelopeId,
+    contentEncryptionAlgorithm: payload.algorithm,
+    implementationVersion: payload.contentEncryption.implementationVersion,
+    domainId: payload.domainId,
+    publicKeyId: payload.publicKeyId,
+    publicKeyVersion: payload.publicKeyVersion,
+    originalSize: payload.originalSize,
+    chunks: payload.chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+      index,
+      plaintextLength,
+      sha256: chunkHash,
+    })),
+  };
+  const dek = await identity.openSealedDek(
+    payload.keyEnvelope,
+    canonicalBytes(manifestBinding),
+  );
+  try {
+    const plaintext = new Uint8Array(payload.originalSize);
+    let offset = 0;
+    for (const chunk of payload.chunks) {
+      const value = await decryptContent(
+        payload.algorithm,
+        dek,
+        payload.envelopeId,
+        base64UrlToBytes(chunk.nonce),
+        toArrayBuffer(base64UrlToBytes(chunk.ciphertext)),
+        chunk.aad,
+      );
+      plaintext.set(new Uint8Array(value), offset);
+      offset += value.byteLength;
+    }
+    return plaintext;
+  } finally {
+    dek.fill(0);
+  }
+};
+
+export const decryptEncryptedText = async (payload: EncryptedPayload) => {
+  const identity = await getSessionIdentity();
+  const dek = await identity.openSealedDek(
+    payload.keyEnvelope,
+    canonicalBytes(payload.aad),
+  );
+  try {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      toArrayBuffer(dek),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt'],
+    );
+    const plaintext = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: toArrayBuffer(base64UrlToBytes(payload.nonce)),
+        additionalData: toArrayBuffer(canonicalBytes(payload.aad)),
+      },
+      key,
+      toArrayBuffer(base64UrlToBytes(payload.ciphertext)),
+    );
+    return new TextDecoder().decode(plaintext);
+  } finally {
+    dek.fill(0);
+  }
+};

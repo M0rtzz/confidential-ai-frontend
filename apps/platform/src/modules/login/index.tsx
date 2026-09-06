@@ -54,6 +54,11 @@ export class LoginModel extends Model {
     this.loginService.userInfo = data as User;
     if (status?.code === 0) {
       localStorage.setItem('User-Token', this.token);
+      // 客户密钥作用域按当前账号生成，浏览器内的 UEK 私钥按此作用域隔离。
+      localStorage.setItem(
+        'Confidential-Key-Scope',
+        `${data?.ownerId || 'unknown'}:${data?.name || loginFields.name}`,
+      );
       // P2P 模式跳转
       if (this.loginService.userInfo.platformType === Platform.AUTONOMY) {
         if (this.loginService.userInfo.ownerId) {

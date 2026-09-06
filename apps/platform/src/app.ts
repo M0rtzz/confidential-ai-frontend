@@ -2,6 +2,8 @@ import { history } from 'umi';
 import request from 'umi-request';
 import { v4 as uuidv4 } from 'uuid';
 
+import { clearSessionIdentity } from '@/security/crypto';
+
 const SESSION_INVALID_CODE = 202011605;
 
 request.interceptors.request.use((url, options) => {
@@ -9,6 +11,10 @@ request.interceptors.request.use((url, options) => {
   const token = localStorage.getItem('User-Token') || '';
   const isFormData =
     typeof FormData !== 'undefined' && options.data instanceof FormData;
+  const isBinary =
+    options.data instanceof Uint8Array ||
+    options.data instanceof ArrayBuffer ||
+    (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(options.data));
   return {
     url: `${url}`,
     options: {
@@ -17,7 +23,8 @@ request.interceptors.request.use((url, options) => {
       credentials: 'include',
       interceptors: true,
       headers: {
-        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(isFormData || isBinary ? {} : { 'Content-Type': 'application/json' }),
+        ...(options.headers || {}),
         'User-Token': token,
         'Trace-Id': traceId,
       },
@@ -30,6 +37,8 @@ request.interceptors.response.use(async (response) => {
   if (status?.code === SESSION_INVALID_CODE) {
     localStorage.removeItem('User-Token');
     localStorage.removeItem('neverLogined');
+    localStorage.removeItem('Confidential-End-Role');
+    clearSessionIdentity();
     history.replace('/login');
   }
   return response;

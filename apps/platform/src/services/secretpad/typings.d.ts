@@ -1012,6 +1012,8 @@ id here Filter by ID */
     name?: string;
     /** User password */
     passwordHash?: string;
+    /** Contract end role selected by this client console. */
+    endRole?: 'CLIENT' | 'CENTER';
   }
 
   interface MessageDetailRequest {

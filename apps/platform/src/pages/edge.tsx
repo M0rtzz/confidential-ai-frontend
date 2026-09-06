@@ -3,6 +3,7 @@ import {
   ApartmentOutlined,
   AuditOutlined,
   CalculatorOutlined,
+  CloudServerOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
   ExperimentOutlined,
@@ -23,6 +24,7 @@ import { ReactComponent as CooperativeNode } from '@/assets/join-node.svg';
 import { ReactComponent as projectManager } from '@/assets/project-manager.svg';
 import { ReactComponent as Workbench } from '@/assets/workbench.svg';
 import { EndRole, hasAccess, Platform } from '@/components/platform-wrapper';
+import { SecureContextGate } from '@/modules/confidential-compute/secure-context-gate';
 import { CooperativeNodeListComponent } from '@/modules/cooperative-node-list';
 import { DataCatalogComponent } from '@/modules/data-catalog';
 import { HomeLayout } from '@/modules/layout/home-layout';
@@ -100,6 +102,28 @@ const UserManagementComponent = lazy(() =>
 const RoleManagementComponent = lazy(() =>
   import('@/modules/system-management').then(
     ({ RoleManagementComponent: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
+// 大模型管理三项功能只在中心端展示，页面体积较大，同样按需加载。
+const LlmConfidentialManagementComponent = lazy(() =>
+  import('@/modules/llm-confidential-management').then(
+    ({ LlmConfidentialManagement: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
+const ConfidentialComputeComponent = lazy(() =>
+  import('@/modules/confidential-compute').then(
+    ({ ConfidentialComputeComponent: Component }) => ({
+      default: Component,
+    }),
+  ),
+);
+const ConfidentialTrainingComponent = lazy(() =>
+  import('@/modules/confidential-training').then(
+    ({ ConfidentialTrainingComponent: Component }) => ({
       default: Component,
     }),
   ),
@@ -191,6 +215,45 @@ const menuItems: EdgeMenuItem[] = [
     icon: <Icon component={CooperativeNode} />,
     component: <CooperativeNodeListComponent />,
     key: 'connected-node',
+  },
+  {
+    label: '大模型管理',
+    icon: <CloudServerOutlined />,
+    key: 'llm-management',
+    // 密态模型、密文资产与机密训练统一由中心端承担，客户端不展示
+    ends: [EndRole.CENTER],
+    children: [
+      {
+        label: '大模型密态管理',
+        key: 'llm-confidential-management',
+        icon: <CloudServerOutlined />,
+        component: (
+          <SecureContextGate>
+            <LlmConfidentialManagementComponent />
+          </SecureContextGate>
+        ),
+      },
+      {
+        label: '可信计算与密文资产',
+        key: 'confidential-compute',
+        icon: <SafetyCertificateOutlined />,
+        component: (
+          <SecureContextGate>
+            <ConfidentialComputeComponent />
+          </SecureContextGate>
+        ),
+      },
+      {
+        label: '机密训练',
+        key: 'confidential-training',
+        icon: <ExperimentOutlined />,
+        component: (
+          <SecureContextGate>
+            <ConfidentialTrainingComponent />
+          </SecureContextGate>
+        ),
+      },
+    ],
   },
   {
     label: '可信执行链路',
