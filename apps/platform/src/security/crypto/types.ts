@@ -132,7 +132,10 @@ export interface CryptoAdapter {
     publicKey: PublicKeyInfo,
     onChunk: (chunk: EncryptedFileUploadChunk) => Promise<void>,
     onProgress?: (progress: number) => void,
-    options?: { algorithm?: ContentEncryptionAlgorithm },
+    options?: {
+      algorithm?: ContentEncryptionAlgorithm;
+      chunkSize?: number;
+    },
   ): Promise<EncryptedFileManifestPayload>;
 
   hashCipher(cipher: ArrayBuffer | Blob | string): Promise<string>;

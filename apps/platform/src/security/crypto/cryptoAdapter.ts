@@ -28,6 +28,7 @@ import type {
 } from './types';
 
 export const FILE_CHUNK_SIZE = 8 * 1024 * 1024;
+export const STREAMING_FILE_CHUNK_SIZE = 32 * 1024 * 1024;
 
 const requireActiveKey = (publicKey: PublicKeyInfo) => {
   assertCryptoAvailable();
@@ -224,11 +225,18 @@ export class BrowserCryptoAdapter implements CryptoAdapter {
     publicKey: PublicKeyInfo,
     onChunk: (chunk: EncryptedFileUploadChunk) => Promise<void>,
     onProgress?: (progress: number) => void,
-    options?: { algorithm?: ContentEncryptionAlgorithm },
+    options?: {
+      algorithm?: ContentEncryptionAlgorithm;
+      chunkSize?: number;
+    },
   ): Promise<EncryptedFileManifestPayload> {
     requireActiveKey(publicKey);
     const envelopeId = randomId('env');
     const algorithm = options?.algorithm || DEFAULT_CONTENT_ENCRYPTION_ALGORITHM;
+    const chunkSize = options?.chunkSize || STREAMING_FILE_CHUNK_SIZE;
+    if (!Number.isSafeInteger(chunkSize) || chunkSize <= 0) {
+      throw new Error('流式加密分块大小必须为正整数');
+    }
     const capability = contentEncryptionCapability(algorithm);
     const dek = crypto.getRandomValues(new Uint8Array(32));
     const chunks: EncryptedFileManifestChunk[] = [];
@@ -238,11 +246,9 @@ export class BrowserCryptoAdapter implements CryptoAdapter {
       for (
         let offset = 0, index = 0;
         offset < file.size;
-        offset += FILE_CHUNK_SIZE, index += 1
+        offset += chunkSize, index += 1
       ) {
-        const plaintext = await file
-          .slice(offset, offset + FILE_CHUNK_SIZE)
-          .arrayBuffer();
+        const plaintext = await file.slice(offset, offset + chunkSize).arrayBuffer();
         const plaintextBytes = new Uint8Array(plaintext);
         const nonce = crypto.getRandomValues(new Uint8Array(capability.nonceSize));
         const aad = {
@@ -323,7 +329,7 @@ export class BrowserCryptoAdapter implements CryptoAdapter {
         algorithm,
         originalSize: file.size,
         cipherSize,
-        chunkSize: FILE_CHUNK_SIZE,
+        chunkSize,
         contentEncryption: {
           algorithm,
           keyDerivation: 'HKDF-SHA256',

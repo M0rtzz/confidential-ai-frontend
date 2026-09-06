@@ -39,7 +39,7 @@ import {
   cryptoAdapter,
   DEFAULT_CONTENT_ENCRYPTION_ALGORITHM,
   downloadDecryptedOutput,
-  FILE_CHUNK_SIZE,
+  STREAMING_FILE_CHUNK_SIZE,
   type ConfidentialInferenceSession,
   getSessionIdentity,
   randomId,
@@ -119,7 +119,13 @@ const ownerEncryptionKey = async (
   status: 'active',
 });
 
-export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }) => {
+export const ConfidentialModelPanel = ({
+  domains,
+  refreshToken = 0,
+}: {
+  domains: TrustedDomain[];
+  refreshToken?: number;
+}) => {
   const [form] = Form.useForm<ImportForm>();
   const [models, setModels] = useState<ConfidentialModel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -160,7 +166,13 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     }
   }, []);
 
-  useEffect(() => void refresh(), [refresh]);
+  useEffect(() => void refresh(), [refresh, refreshToken]);
+
+  useEffect(() => {
+    if (!modelActionId) return undefined;
+    const timer = window.setInterval(() => void refresh(), 5000);
+    return () => window.clearInterval(timer);
+  }, [modelActionId, refresh]);
 
   const domainOptions = useMemo(
     () =>
@@ -211,13 +223,15 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     }
     const identity = await registerIdentity();
     const publicKey = await ownerEncryptionKey(identity, values.domainId);
+    const capabilities = await ConfidentialModelApi.capabilities();
+    const chunkSize = capabilities.chunkSize || STREAMING_FILE_CHUNK_SIZE;
     const session = await ConfidentialModelApi.createWeightUpload({
       modelName: values.name,
       originalFileName: file.name,
       originalSize: file.size,
       domainId: values.domainId,
       contentEncryptionAlgorithm: values.algorithm,
-      expectedChunks: Math.ceil(file.size / FILE_CHUNK_SIZE),
+      expectedChunks: Math.ceil(file.size / chunkSize),
     });
     setProgress(2);
     const encrypted = await cryptoAdapter.encryptFileStreaming(
@@ -232,7 +246,10 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
         );
       },
       (value) => setProgress(Math.max(2, Math.min(96, value))),
-      { algorithm: values.algorithm },
+      {
+        algorithm: values.algorithm,
+        chunkSize,
+      },
     );
     const manifest = {
       ...encrypted,

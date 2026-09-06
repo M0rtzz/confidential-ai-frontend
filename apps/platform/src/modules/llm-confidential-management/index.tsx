@@ -1,14 +1,21 @@
 import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Alert, Button, Descriptions, Space, Table, Tag, Tabs, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Descriptions,
+  message,
+  Space,
+  Table,
+  Tag,
+  Tabs,
+  Typography,
+} from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ConfidentialModelPanel } from '@/modules/confidential-compute/model-panel';
 import type { TrustedDomain } from '@/security/crypto';
 import { confidentialComputeAdapters } from '@/services/confidential-compute';
-import {
-  ConfidentialModelApi,
-  type ConfidentialModel,
-} from '@/services/confidential-models';
+import { ConfidentialModelApi } from '@/services/confidential-models';
 
 const statusColor = (status: string) => {
   if (status === 'ONLINE' || status === 'RUNNING') return 'success';
@@ -21,7 +28,7 @@ const statusColor = (status: string) => {
 /** Customer model-package management and operator-safe runtime view. */
 export const LlmConfidentialManagement = () => {
   const [domains, setDomains] = useState<TrustedDomain[]>([]);
-  const [models, setModels] = useState<ConfidentialModel[]>([]);
+  const [modelRefreshToken, setModelRefreshToken] = useState(0);
   const [runtimeRows, setRuntimeRows] = useState<
     Array<{
       deploymentId: string;
@@ -30,6 +37,7 @@ export const LlmConfidentialManagement = () => {
       version?: number;
       status: string;
       endpointPath: string;
+      authorizationSessionId?: string;
       errorCode?: string;
     }>
   >([]);
@@ -38,20 +46,25 @@ export const LlmConfidentialManagement = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [domainRows, modelRows, runtimeInstances] = await Promise.all([
+      const [domainRows, runtimeInstances] = await Promise.all([
         confidentialComputeAdapters.api.listDomains(),
-        ConfidentialModelApi.list(),
         ConfidentialModelApi.runtimeInstances(),
       ]);
       setDomains(domainRows.filter((item) => item.trustStatus !== 'blocked'));
-      setModels(modelRows);
       setRuntimeRows(runtimeInstances);
+    } catch (failure) {
+      message.error(failure instanceof Error ? failure.message : '运行状态刷新失败');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => void refresh(), [refresh]);
+
+  const refreshAll = useCallback(async () => {
+    setModelRefreshToken((value) => value + 1);
+    await refresh();
+  }, [refresh]);
 
   return (
     <div style={{ padding: 24 }}>
@@ -70,7 +83,7 @@ export const LlmConfidentialManagement = () => {
         <Button
           icon={<ReloadOutlined />}
           loading={loading}
-          onClick={() => void refresh()}
+          onClick={() => void refreshAll()}
         >
           刷新
         </Button>
@@ -87,7 +100,12 @@ export const LlmConfidentialManagement = () => {
           {
             key: 'customer',
             label: '客户模型管理',
-            children: <ConfidentialModelPanel domains={domains} />,
+            children: (
+              <ConfidentialModelPanel
+                domains={domains}
+                refreshToken={modelRefreshToken}
+              />
+            ),
           },
           {
             key: 'operator',
