@@ -50,6 +50,7 @@ import {
   viewDeadline,
   resultManagement,
 } from '@/modules/data-sandbox-mvp/result-access';
+import { EndRole, getEndRole } from '@/components/platform-wrapper';
 
 import styles from './index.less';
 
@@ -386,7 +387,7 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
           >
             预览
           </Button>
-          {r._kind === 'result' && (
+          {r._kind === 'result' && getEndRole() === EndRole.CLIENT && (
             <Button type="link" onClick={() => resultManagement({ ...r, sandboxId })}>
               前往结果管理
             </Button>

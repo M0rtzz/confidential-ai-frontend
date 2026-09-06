@@ -306,6 +306,13 @@ export const TeeExportApprovalComponent = () => {
     });
   const stateOf = (row: DataSandboxRecord) =>
     row.status || row.latestStatus || 'UNREQUESTED';
+  /** 结果行状态：旧工单已失效而当前仍可申请时不沿用旧工单状态，历史经「最近申请」查看 */
+  const resultStateText = (row: DataSandboxRecord) => {
+    if (row.report) return '明文报告';
+    if (row.ordinary) return '普通结果表';
+    if (row.canApply === true) return '可申请';
+    return labels[stateOf(row)] || '未申请';
+  };
   const accessStatusOf = (row: DataSandboxRecord) => {
     if (row.ordinary || row.report) {
       if (expired(viewDeadline(row), now) || row.accessStatus === 'EXPIRED')
@@ -322,23 +329,20 @@ export const TeeExportApprovalComponent = () => {
         return 'DEADLINE_REQUIRED';
       return row.accessStatus === 'DEADLINE_REQUIRED' ? 'DEADLINE_REQUIRED' : 'ACTIVE';
     }
-    const state = row.accessStatus || row.latestAccessStatus;
-    if (
-      orderExpired(row) ||
-      state === 'EXPIRED' ||
-      (!row.exportId && expired(row.maxExportUntil, now))
-    )
-      return 'EXPIRED';
+    // 结果行描述「现在能否发起新申请」，与历史工单的存续状态无关：
+    // 旧工单到期后授权仍在有效期内的，结果依然可申请，不应沿用旧工单的失效状态。
+    if (!row.exportId) {
+      if (!Number.isFinite(accessTime(row.maxExportUntil))) return 'DEADLINE_REQUIRED';
+      if (expired(row.maxExportUntil, now)) return 'EXPIRED';
+      return row.canApply === true ? 'ACTIVE' : 'UNAVAILABLE';
+    }
+    const state = row.accessStatus;
+    if (orderExpired(row) || state === 'EXPIRED') return 'EXPIRED';
     if (state === 'UNAVAILABLE') return 'UNAVAILABLE';
     if (state === 'UNKNOWN' || state === 'DEADLINE_REQUIRED')
       return 'DEADLINE_REQUIRED';
-    const deadline = row.exportId ? untilOf(row) : row.maxExportUntil;
-    if (!Number.isFinite(accessTime(deadline))) return 'DEADLINE_REQUIRED';
-    if (row.latestExportId && !state) return 'DEADLINE_REQUIRED';
-    return state === 'ACTIVE' ||
-      (!row.exportId && !row.latestExportId && row.canApply === true)
-      ? 'ACTIVE'
-      : 'UNAVAILABLE';
+    if (!Number.isFinite(accessTime(untilOf(row)))) return 'DEADLINE_REQUIRED';
+    return state === 'ACTIVE' ? 'ACTIVE' : 'UNAVAILABLE';
   };
   const accessOf = (row: DataSandboxRecord) =>
     ((
@@ -521,15 +525,7 @@ export const TeeExportApprovalComponent = () => {
     },
     {
       title: '状态',
-      render: (_: unknown, row: DataSandboxRecord) => (
-        <Tag>
-          {row.report
-            ? '明文报告'
-            : row.ordinary
-            ? '普通结果表'
-            : labels[stateOf(row)] || '未申请'}
-        </Tag>
-      ),
+      render: (_: unknown, row: DataSandboxRecord) => <Tag>{resultStateText(row)}</Tag>,
     },
     {
       title: '有效性',

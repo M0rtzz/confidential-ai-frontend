@@ -26,6 +26,7 @@ import { parse } from 'query-string';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'umi';
 
+import { EndRole, getEndRole } from '@/components/platform-wrapper';
 import { formatTime, MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
 import { DataComputeApi, DataDevApi, responseData } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
@@ -36,6 +37,9 @@ import {
   viewDeadline,
   resultManagement,
 } from '@/modules/data-sandbox-mvp/result-access';
+
+/** 结果导出与审批只在客户端注册，中心端不提供该入口，跳转会落到空白页 */
+const canManageResult = () => getEndRole() === EndRole.CLIENT;
 
 const artifactTypeLabels: Record<string, string> = {
   JAR: 'JAR 制品',
@@ -184,9 +188,11 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
               message="TEE 结果为密文对象，导出审批完成前不提供明文预览。"
               style={{ margin: '12px 0' }}
             />
-            <Button type="primary" onClick={() => resultManagement(item)}>
-              前往结果管理
-            </Button>
+            {canManageResult() && (
+              <Button type="primary" onClick={() => resultManagement(item)}>
+                前往结果管理
+              </Button>
+            )}
           </Card>
         );
       })}
@@ -1011,7 +1017,13 @@ export const DataDevComponent = () => {
                           dataIndex: 'task_name',
                           render: (value: string) => value || '-',
                         },
-                        { title: '行数', dataIndex: 'row_count' },
+                        {
+                          title: '行数',
+                          dataIndex: 'row_count',
+                          // 密文产出没有明文行数，后端置空，此处显示未知
+                          render: (value: number | null) =>
+                            value === null || value === undefined ? '-' : value,
+                        },
                         {
                           title: '查看截止时间',
                           dataIndex: 'view_until',
@@ -1045,17 +1057,23 @@ export const DataDevComponent = () => {
                             </Space>
                           ),
                         },
-                        {
-                          title: '操作',
-                          render: (_: unknown, row: DataSandboxRecord) => (
-                            <Button
-                              type="link"
-                              onClick={() => resultManagement({ ...row, sandboxId })}
-                            >
-                              前往结果管理
-                            </Button>
-                          ),
-                        },
+                        ...(canManageResult()
+                          ? [
+                              {
+                                title: '操作',
+                                render: (_: unknown, row: DataSandboxRecord) => (
+                                  <Button
+                                    type="link"
+                                    onClick={() =>
+                                      resultManagement({ ...row, sandboxId })
+                                    }
+                                  >
+                                    前往结果管理
+                                  </Button>
+                                ),
+                              },
+                            ]
+                          : []),
                       ]}
                     />
                   ),
