@@ -850,103 +850,272 @@ const TreeStructureSection = ({
 }) => {
   const [computing, setComputing] = useState(false);
   const [computeError, setComputeError] = useState('');
+  const [treeStatus, setTreeStatus] = useState(String(data.status || ''));
+  const [retryCount, setRetryCount] = useState(0);
+  const [treeIndex, setTreeIndex] = useState(Number(data.treeIndex || 0));
+  const [localData, setLocalData] = useState<DataSandboxRecord>(data);
   const requestedRef = useRef('');
+  const requestIdRef = useRef(0);
+  const refreshRequestedRef = useRef(false);
+  const retryRequestedRef = useRef(false);
   const onComputedRef = useRef(onComputed);
   onComputedRef.current = onComputed;
-  const nodes = reportRows(data.nodes);
+  const reportTreeIndex = Number(data.treeIndex || 0);
+  const sameTree = reportTreeIndex === treeIndex;
+  const reportStatus = sameTree ? String(data.status || '') : 'NOT_COMPUTED';
+  const visibleData =
+    sameTree && data.status === 'AVAILABLE' ? data : localData;
+  const nodes = reportRows(visibleData.nodes);
+  const treeCount = Number(visibleData.treeCount || data.treeCount || 0);
   useEffect(() => {
-    const requestKey = `${modelId}:0`;
+    requestedRef.current = '';
+    requestIdRef.current += 1;
+    refreshRequestedRef.current = false;
+    retryRequestedRef.current = false;
+    setTreeIndex(Number(data.treeIndex || 0));
+    setLocalData(data);
+    setTreeStatus(String(data.status || ''));
+    setComputeError('');
+    setRetryCount(0);
+  }, [modelId]);
+  useEffect(() => {
+    if (sameTree && data.status === 'AVAILABLE') {
+      setLocalData(data);
+      setTreeStatus('AVAILABLE');
+    }
+  }, [data, sameTree]);
+  useEffect(() => {
+    const requestKey = `${modelId}:${treeIndex}`;
     if (
       !modelId ||
-      data.status === 'AVAILABLE' ||
-      data.status === 'UNSUPPORTED' ||
+      reportStatus === 'AVAILABLE' ||
+      reportStatus === 'UNSUPPORTED' ||
+      ((reportStatus === 'FAILED' || reportStatus === 'BLOCKED') &&
+        retryCount === 0) ||
       requestedRef.current === requestKey
     ) {
       return;
     }
+    if (requestedRef.current !== requestKey) {
+      refreshRequestedRef.current = false;
+    }
     requestedRef.current = requestKey;
+    const requestId = ++requestIdRef.current;
     let active = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let retry = retryRequestedRef.current;
+    retryRequestedRef.current = false;
     setComputing(true);
     setComputeError('');
-    DataComputeApi.canvasModelTreeStructure(modelId, 0)
-      .then(() => {
-        if (active) onComputedRef.current();
-      })
-      .catch((error: any) => {
-        if (active) setComputeError(error.message || '树结构生成失败');
-      })
-      .finally(() => {
-        if (active) setComputing(false);
-      });
+    const isCurrent = () => active && requestId === requestIdRef.current;
+    const poll = async () => {
+      try {
+        const result = responseData(
+          await DataComputeApi.canvasModelTreeStructure(modelId, treeIndex, retry),
+          {},
+        );
+        retry = false;
+        if (!isCurrent()) return;
+        const status = String(result.status || '');
+        setTreeStatus(status);
+        setLocalData((current) => ({ ...current, ...result, status }));
+        if (status === 'AVAILABLE') {
+          setComputing(false);
+          if (!refreshRequestedRef.current) {
+            refreshRequestedRef.current = true;
+            onComputedRef.current();
+          }
+          return;
+        }
+        if (status === 'RUNNING') {
+          timer = setTimeout(() => void poll(), 2000);
+          return;
+        }
+        if (status === 'FAILED' || status === 'BLOCKED') {
+          setComputing(false);
+          setComputeError(
+            result.message ||
+              `树结构生成${status === 'BLOCKED' ? '被阻断' : '失败'}`,
+          );
+          return;
+        }
+        if (status === 'UNSUPPORTED') {
+          setComputing(false);
+          return;
+        }
+        throw new Error(result.message || '树结构状态异常');
+      } catch (error: any) {
+        if (isCurrent()) {
+          setComputing(false);
+          setTreeStatus('FAILED');
+          setComputeError(error.message || '树结构生成失败');
+        }
+      }
+    };
+    void poll();
     return () => {
       active = false;
+      requestIdRef.current += 1;
+      if (timer) clearTimeout(timer);
     };
-  }, [data.status, modelId]);
-  if (data.status === 'UNSUPPORTED') {
+  }, [modelId, reportStatus, retryCount, treeIndex]);
+  const displayStatus =
+    treeStatus && treeStatus !== 'NOT_COMPUTED'
+      ? treeStatus
+      : reportStatus || String(localData.status || '');
+  const statusError =
+    displayStatus === 'FAILED' || displayStatus === 'BLOCKED'
+      ? visibleData.message ||
+        `树结构生成${displayStatus === 'BLOCKED' ? '被阻断' : '失败'}`
+      : '';
+  const retry = () => {
+    requestedRef.current = '';
+    requestIdRef.current += 1;
+    refreshRequestedRef.current = false;
+    retryRequestedRef.current = true;
+    setComputeError('');
+    setTreeStatus('RUNNING');
+    setRetryCount((count) => count + 1);
+  };
+  const selectTree = (index: number) => {
+    requestedRef.current = '';
+    requestIdRef.current += 1;
+    refreshRequestedRef.current = false;
+    retryRequestedRef.current = false;
+    setComputeError('');
+    setComputing(false);
+    setTreeStatus('NOT_COMPUTED');
+    setLocalData({
+      ...data,
+      status: 'NOT_COMPUTED',
+      treeIndex: index,
+      nodes: [],
+    });
+    setTreeIndex(index);
+  };
+  if (displayStatus === 'UNSUPPORTED') {
     return (
       <Alert
         showIcon
         type="info"
         message={`当前算法（${
-          data.componentCode || '-'
+          visibleData.componentCode || '-'
         }）不是树模型，没有可导出的树结构`}
       />
     );
   }
-  const treeCount = Number(data.treeCount || 0);
-  if (data.status !== 'AVAILABLE') {
+  if (displayStatus !== 'AVAILABLE') {
     return (
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        {treeCount > 1 ? (
+          <Select
+            value={treeIndex}
+            style={{ width: 320 }}
+            aria-label="选择模型树"
+            options={Array.from({ length: treeCount }, (_, index) => ({
+              value: index,
+              label: `第 ${index + 1} 棵树`,
+            }))}
+            onChange={selectTree}
+          />
+        ) : null}
         <Alert
           showIcon
-          type={computeError ? 'error' : 'info'}
-          message={computeError || (computing ? '正在生成树结构…' : '树结构正在准备中')}
+          type={computeError || statusError ? 'error' : 'info'}
+          message={
+            computeError ||
+            statusError ||
+            (computing || displayStatus === 'RUNNING'
+              ? '正在生成树结构…'
+              : '树结构正在准备中')
+          }
+          action={
+            computeError || statusError ? (
+              <Button size="small" onClick={retry}>
+                重试
+              </Button>
+            ) : null
+          }
         />
       </Space>
     );
   }
-  const nodeMap = new Map(nodes.map((node) => [String(node.nodeId), node]));
+  const nodeMap = new Map(
+    nodes.map((node) => [String(node.nodeId ?? node.id), node]),
+  );
   const childIds = new Set(
     nodes
-      .flatMap((node) => [node.left, node.right])
+      .flatMap((node) => [node.leftChild ?? node.left, node.rightChild ?? node.right])
       .filter((id) => id !== null && id !== undefined && id !== '')
       .map(String),
   );
-  const root = nodes.find((node) => !childIds.has(String(node.nodeId))) || nodes[0];
+  const root =
+    nodes.find((node) => !childIds.has(String(node.nodeId ?? node.id))) || nodes[0];
   const buildTree = (
     node: DataSandboxRecord | undefined,
     branch = '',
     visited = new Set<string>(),
   ): any => {
     if (!node) return null;
-    const key = String(node.nodeId);
+    const key = String(node.nodeId ?? node.id);
     if (visited.has(key)) return null;
     const nextVisited = new Set(visited).add(key);
+    const isLeaf = node.isLeaf ?? node.leaf;
+    const leftChild = node.leftChild ?? node.left;
+    const rightChild = node.rightChild ?? node.right;
+    const comparison = String(node.comparison || 'le');
+    const categories = node.categories;
     const value = Array.isArray(node.value)
       ? JSON.stringify(node.value)
       : reportValue(node.value);
-    const title = node.leaf ? (
+    const condition =
+      comparison === 'in'
+        ? `${String(node.feature || '特征')} in ${reportValue(categories)}`
+        : `${String(node.feature || '特征')} ${
+            comparison === 'lt' ? '<' : '≤'
+          } ${reportValue(node.threshold)}`;
+    const details = [
+      node.comparison ? `comparison=${node.comparison}` : '',
+      categories !== undefined ? `categories=${reportValue(categories)}` : '',
+      node.missingDirection
+        ? `missingDirection=${reportValue(node.missingDirection)}`
+        : '',
+    ].filter(Boolean);
+    const title = isLeaf ? (
       <span>
         {branch ? `${branch} · ` : ''}叶节点：{value}
       </span>
     ) : (
       <span>
         {branch ? `${branch} · ` : ''}
-        {String(node.feature || '特征')} ≤ {reportValue(node.threshold)}
+        {condition}
+        {details.length ? `（${details.join('；')}）` : ''}
       </span>
     );
-    const children = node.leaf
+    const children = isLeaf
       ? []
       : [
-          buildTree(nodeMap.get(String(node.left)), '是', nextVisited),
-          buildTree(nodeMap.get(String(node.right)), '否', nextVisited),
+          buildTree(nodeMap.get(String(leftChild)), '是', nextVisited),
+          buildTree(nodeMap.get(String(rightChild)), '否', nextVisited),
         ].filter(Boolean);
     return { key, title, children };
   };
   const treeData = root ? [buildTree(root)].filter(Boolean) : [];
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-      {data.truncated ? (
+      {treeCount > 1 ? (
+        <Select
+          value={treeIndex}
+          style={{ width: 320 }}
+          aria-label="选择模型树"
+          options={Array.from({ length: treeCount }, (_, index) => ({
+            value: index,
+            label: `第 ${index + 1} 棵树`,
+          }))}
+          onChange={selectTree}
+        />
+      ) : null}
+      {visibleData.truncated ? (
         <Alert
           showIcon
           type="warning"
@@ -958,29 +1127,33 @@ const TreeStructureSection = ({
         size="small"
         column={3}
         items={[
-          { key: 'kind', label: '模型类型', children: String(data.kind || '-') },
+          { key: 'kind', label: '模型类型', children: String(visibleData.kind || '-') },
           {
             key: 'index',
             label: '当前树序号',
-            children: `第 ${Number(data.treeIndex || 0) + 1} 棵${
+            children: `第 ${treeIndex + 1} 棵${
               treeCount ? ` / 共 ${treeCount} 棵` : ''
             }`,
           },
           {
             key: 'depth',
             label: '最大深度',
-            children: reportValue(data.maxDepth),
+            children: reportValue(visibleData.maxDepth),
           },
           {
             key: 'nodes',
             label: '节点数',
-            children: String(data.nodeCount ?? nodes.length),
+            children: String(visibleData.nodeCount ?? nodes.length),
           },
-          { key: 'leaves', label: '叶子数', children: String(data.leafCount ?? 0) },
+          {
+            key: 'leaves',
+            label: '叶子数',
+            children: String(visibleData.leafCount ?? 0),
+          },
           {
             key: 'time',
             label: '导出时间',
-            children: formatTime(data.computedAt),
+            children: formatTime(visibleData.computedAt),
           },
         ]}
       />
@@ -990,7 +1163,7 @@ const TreeStructureSection = ({
         <Alert showIcon type="warning" message="没有获取到可展示的树节点" />
       )}
       <Table
-        rowKey={(row) => String(row.nodeId)}
+        rowKey={(row) => String(row.nodeId ?? row.id)}
         size="small"
         scroll={{ x: 'max-content', y: 420 }}
         pagination={
@@ -999,20 +1172,44 @@ const TreeStructureSection = ({
         dataSource={nodes}
         locale={{ emptyText: '没有获取到树节点' }}
         columns={[
-          { title: '节点', dataIndex: 'nodeId', width: 90 },
+          {
+            title: '节点',
+            width: 90,
+            render: (_, row) => reportValue(row.nodeId ?? row.id),
+          },
           { title: '深度', dataIndex: 'depth', width: 72, render: reportValue },
           {
             title: '类型',
             width: 90,
             render: (_, row) =>
-              row.leaf ? <Tag>叶子</Tag> : <Tag color="blue">分裂</Tag>,
+              (row.isLeaf ?? row.leaf) ? (
+                <Tag>叶子</Tag>
+              ) : (
+                <Tag color="blue">分裂</Tag>
+              ),
           },
           { title: '分裂特征', dataIndex: 'feature', render: reportValue },
+          { title: '比较方式', dataIndex: 'comparison', render: reportValue },
           { title: '阈值', dataIndex: 'threshold', render: reportValue },
+          {
+            title: '类别',
+            render: (_, row) => reportValue(row.categories),
+          },
+          {
+            title: '缺失值方向',
+            dataIndex: 'missingDirection',
+            render: reportValue,
+          },
           { title: '样本数', dataIndex: 'samples', render: reportValue },
           { title: '取值', dataIndex: 'value', render: reportValue },
-          { title: '左子节点', dataIndex: 'left', render: reportValue },
-          { title: '右子节点', dataIndex: 'right', render: reportValue },
+          {
+            title: '左子节点',
+            render: (_, row) => reportValue(row.leftChild ?? row.left),
+          },
+          {
+            title: '右子节点',
+            render: (_, row) => reportValue(row.rightChild ?? row.right),
+          },
         ]}
       />
     </Space>
@@ -1022,11 +1219,13 @@ const TreeStructureSection = ({
 const WorkflowModelReport = ({
   report,
   modelId,
+  selectedTestId,
   onTestChange,
   onRefresh,
 }: {
   report?: DataSandboxRecord;
   modelId: string;
+  selectedTestId?: string;
   onTestChange: (testId: string) => void;
   onRefresh: () => void;
 }) => {
@@ -1085,7 +1284,7 @@ const WorkflowModelReport = ({
       <Divider orientation="left">模型评估</Divider>
       {testHistory.length > 1 && (
         <Select
-          value={evaluation.testId}
+          value={selectedTestId || evaluation.testId}
           style={{ width: 320 }}
           aria-label="选择模型测试批次"
           options={testHistory.map((test) => ({
@@ -1231,6 +1430,10 @@ const WorkflowModelDrawer = ({
   const [report, setReport] = useState<DataSandboxRecord>();
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState('');
+  const [selectedTestId, setSelectedTestId] = useState('');
+  const reportRequestRef = useRef(0);
+  const currentModelIdRef = useRef('');
+  currentModelIdRef.current = model?.id || '';
   const graph = workflowGraph(model?.graph_json);
   const names = new Map(
     graph.nodes.map((node) => [
@@ -1241,20 +1444,45 @@ const WorkflowModelDrawer = ({
   useEffect(() => {
     setActiveTab('detail');
     setReport(undefined);
+    setReportLoading(false);
     setReportError('');
+    setSelectedTestId('');
+    reportRequestRef.current += 1;
   }, [model?.id]);
-  const loadReport = async (testId = '') => {
+  const loadReport = async (testId = selectedTestId) => {
     if (!model?.id) return;
+    const modelId = model.id;
+    const requestId = ++reportRequestRef.current;
+    setSelectedTestId(testId);
     setReportLoading(true);
     setReportError('');
     try {
-      setReport(
-        responseData(await DataComputeApi.canvasModelReport(model.id, testId), {}),
+      const nextReport = responseData(
+        await DataComputeApi.canvasModelReport(modelId, testId),
+        {},
       );
+      if (
+        requestId !== reportRequestRef.current ||
+        currentModelIdRef.current !== modelId
+      ) {
+        return;
+      }
+      setReport(nextReport);
+      setSelectedTestId(String(nextReport.evaluation?.testId ?? testId ?? ''));
     } catch (e: any) {
-      setReportError(e.message || '模型报告加载失败');
+      if (
+        requestId === reportRequestRef.current &&
+        currentModelIdRef.current === modelId
+      ) {
+        setReportError(e.message || '模型报告加载失败');
+      }
     } finally {
-      setReportLoading(false);
+      if (
+        requestId === reportRequestRef.current &&
+        currentModelIdRef.current === modelId
+      ) {
+        setReportLoading(false);
+      }
     }
   };
   const detail = model ? (
@@ -1341,17 +1569,35 @@ const WorkflowModelDrawer = ({
             {
               key: 'report',
               label: '模型报告',
-              children: reportError ? (
-                <Alert showIcon type="error" message={reportError} />
-              ) : reportLoading ? (
-                <Card loading />
-              ) : (
-                <WorkflowModelReport
-                  report={report}
-                  modelId={model.id}
-                  onTestChange={loadReport}
-                  onRefresh={() => void loadReport()}
-                />
+              children: (
+                <>
+                  {reportError ? (
+                    <Alert
+                      showIcon
+                      type="error"
+                      message={reportError}
+                      action={
+                        <Button
+                          size="small"
+                          onClick={() => void loadReport(selectedTestId)}
+                        >
+                          重试
+                        </Button>
+                      }
+                    />
+                  ) : null}
+                  {report ? (
+                    <WorkflowModelReport
+                      report={report}
+                      modelId={model.id}
+                      selectedTestId={selectedTestId}
+                      onTestChange={loadReport}
+                      onRefresh={() => void loadReport(selectedTestId)}
+                    />
+                  ) : reportLoading ? (
+                    <Card loading />
+                  ) : null}
+                </>
               ),
             },
           ]}
