@@ -652,11 +652,20 @@ export const TeeExportApi = {
       },
     });
     const disposition = response.headers.get('Content-Disposition') || '';
+    // 成功模型也是 JSON；只有非附件响应才检查业务错误信封。
+    const body =
+      !response.ok ||
+      (!/attachment/i.test(disposition) &&
+        (response.headers.get('Content-Type') || '').includes('application/json'))
+        ? await response
+            .clone()
+            .json()
+            .catch(() => ({}))
+        : null;
     if (
       !response.ok ||
-      (response.headers.get('Content-Type') || '').includes('application/json')
+      (body?.status?.code != null && Number(body.status.code) !== 0)
     ) {
-      const body = await response.json().catch(() => ({}));
       throw new Error(
         body?.data?.errorCode ||
           body?.status?.msg ||

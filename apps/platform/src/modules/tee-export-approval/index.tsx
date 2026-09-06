@@ -329,12 +329,13 @@ export const TeeExportApprovalComponent = () => {
         return 'DEADLINE_REQUIRED';
       return row.accessStatus === 'DEADLINE_REQUIRED' ? 'DEADLINE_REQUIRED' : 'ACTIVE';
     }
-    // 结果行描述「现在能否发起新申请」，与历史工单的存续状态无关：
-    // 旧工单到期后授权仍在有效期内的，结果依然可申请，不应沿用旧工单的失效状态。
+    // 结果可重新申请或最近工单仍有效时显示有效，申请和下载权限分别由按钮控制。
     if (!row.exportId) {
       if (!Number.isFinite(accessTime(row.maxExportUntil))) return 'DEADLINE_REQUIRED';
       if (expired(row.maxExportUntil, now)) return 'EXPIRED';
-      return row.canApply === true ? 'ACTIVE' : 'UNAVAILABLE';
+      return row.canApply === true || row.latestAccessStatus === 'ACTIVE'
+        ? 'ACTIVE'
+        : 'UNAVAILABLE';
     }
     const state = row.accessStatus;
     if (orderExpired(row) || state === 'EXPIRED') return 'EXPIRED';
