@@ -47,6 +47,7 @@ export class LoginModel extends Model {
     const { status, data } = await this.loginService.login({
       name: loginFields.name,
       password: loginFields.password,
+      endRole: loginFields.endRole,
     });
 
     const notFirstTimeIn = localStorage.getItem('notFirstTimeIn');
@@ -54,6 +55,14 @@ export class LoginModel extends Model {
     this.loginService.userInfo = data as User;
     if (status?.code === 0) {
       localStorage.setItem('User-Token', this.token);
+      localStorage.setItem(
+        'Confidential-Key-Scope',
+        `${data?.ownerId || 'unknown'}:${data?.name || loginFields.name}`,
+      );
+      localStorage.setItem(
+        'Confidential-End-Role',
+        (data as User | undefined)?.endRole || loginFields.endRole,
+      );
       // P2P 模式跳转
       if (this.loginService.userInfo.platformType === Platform.AUTONOMY) {
         if (this.loginService.userInfo.ownerId) {

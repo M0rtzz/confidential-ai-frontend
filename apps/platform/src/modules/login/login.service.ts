@@ -18,11 +18,15 @@ export class LoginService extends Model {
   /** AUTONOMY 模式 - 机构下的所有节点 */
   autonomyNodeList: API.NodeVO[] = [];
 
-  async login(loginField: { name: string; password: string }) {
+  async login(loginField: {
+    name: string;
+    password: string;
+    endRole: 'CLIENT' | 'CENTER';
+  }) {
     return await API.AuthController.login({
       name: loginField.name,
       passwordHash: sha256(loginField.password).toString(),
-      endRole: 'CLIENT',
+      endRole: loginField.endRole,
     });
   }
 
@@ -73,6 +77,7 @@ export interface User {
   ownerType: 'CENTER' | 'EDGE'; // 宿主类型
   ownerId: string; // 	NODE的话这里存nodeId
   deployMode: PadMode; // 'ALL-IN-ONE' | 'MPC' | 'TEE';
+  endRole: 'CLIENT' | 'CENTER';
 }
 export interface UserInfo {
   user: User | null;

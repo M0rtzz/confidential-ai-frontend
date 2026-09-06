@@ -379,6 +379,49 @@ export const restoreEncryptedFileDek = async (
   }
 };
 
+export const openEncryptedFileDek = async (
+  payload: EncryptedFilePayload | EncryptedFileManifestPayload,
+) => {
+  const identity = await getSessionIdentity();
+  const manifestBinding = {
+    format: payload.format,
+    envelopeId: payload.envelopeId,
+    contentEncryptionAlgorithm: payload.algorithm,
+    implementationVersion: payload.contentEncryption.implementationVersion,
+    domainId: payload.domainId,
+    publicKeyId: payload.publicKeyId,
+    publicKeyVersion: payload.publicKeyVersion,
+    originalSize: payload.originalSize,
+    chunks: payload.chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+      index,
+      plaintextLength,
+      sha256: chunkHash,
+    })),
+  };
+  return identity.openSealedDek(payload.keyEnvelope, canonicalBytes(manifestBinding));
+};
+
+export const decryptEncryptedFileChunk = async (
+  payload: EncryptedFilePayload | EncryptedFileManifestPayload,
+  chunk: EncryptedFileChunk | EncryptedFileManifestChunk,
+  ciphertext: Uint8Array,
+  dek: Uint8Array,
+) => {
+  if ((await sha256(ciphertext)) !== chunk.sha256) {
+    throw new Error(`密文分块 ${chunk.index} 的 SHA-256 校验失败`);
+  }
+  return new Uint8Array(
+    await decryptContent(
+      payload.algorithm,
+      dek,
+      payload.envelopeId,
+      base64UrlToBytes(chunk.nonce),
+      toArrayBuffer(ciphertext),
+      chunk.aad,
+    ),
+  );
+};
+
 export const decryptEncryptedFile = async (payload: EncryptedFilePayload) => {
   const identity = await getSessionIdentity();
   const manifestBinding = {

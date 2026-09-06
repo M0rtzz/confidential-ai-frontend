@@ -40,3 +40,8 @@ export const forgetDek = (envelopeId: string) => {
   vault.get(envelopeId)?.fill(0);
   vault.delete(envelopeId);
 };
+
+export const forgetAllDeks = () => {
+  vault.forEach((dek) => dek.fill(0));
+  vault.clear();
+};

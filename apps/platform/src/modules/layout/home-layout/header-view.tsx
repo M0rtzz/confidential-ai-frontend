@@ -25,6 +25,7 @@ import { GuideTourService } from '@/modules/guide-tour/guide-tour-service';
 import { ChangePasswordModal } from '@/modules/login/component/change-password';
 import { LoginService } from '@/modules/login/login.service';
 import platformConfig from '@/platform.config';
+import { clearSessionIdentity } from '@/security/crypto';
 import { logout } from '@/services/secretpad/AuthController';
 import { get } from '@/services/secretpad/NodeController';
 import { get as getInst } from '@/services/secretpad/InstController';
@@ -88,6 +89,8 @@ export const HeaderComponent = () => {
     );
     localStorage.removeItem('User-Token');
     localStorage.removeItem('neverLogined');
+    localStorage.removeItem('Confidential-End-Role');
+    clearSessionIdentity();
     history.replace('/login');
   };
 
@@ -253,20 +256,24 @@ export const HeaderComponent = () => {
         )}
       </div>
       <div className={styles.right}>
-        <Button
-          type="text"
-          icon={<SafetyCertificateOutlined />}
-          onClick={() => history.push('/confidential-compute')}
-        >
-          可信计算
-        </Button>
-        <Button
-          type="text"
-          icon={<ExperimentOutlined />}
-          onClick={() => history.push('/confidential-training')}
-        >
-          机密训练
-        </Button>
+        {loginService.userInfo?.endRole === 'CLIENT' && (
+          <Button
+            type="text"
+            icon={<SafetyCertificateOutlined />}
+            onClick={() => history.push('/confidential-compute')}
+          >
+            可信计算
+          </Button>
+        )}
+        {loginService.userInfo?.endRole === 'CENTER' && (
+          <Button
+            type="text"
+            icon={<ExperimentOutlined />}
+            onClick={() => history.push('/confidential-training')}
+          >
+            机密训练
+          </Button>
+        )}
         <Button
           type="text"
           icon={<CloudServerOutlined />}

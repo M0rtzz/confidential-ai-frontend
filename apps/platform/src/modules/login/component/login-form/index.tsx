@@ -1,4 +1,4 @@
-import { Form, Typography, Button, Input } from 'antd';
+import { Form, Typography, Button, Input, Segmented } from 'antd';
 import { useState } from 'react';
 
 import styles from './index.less';
@@ -6,6 +6,7 @@ import styles from './index.less';
 export interface UserInfo {
   name: string;
   password: string;
+  endRole: 'CLIENT' | 'CENTER';
 }
 
 export const LoginForm = (props: {
@@ -27,7 +28,7 @@ export const LoginForm = (props: {
       </Title>
       <Form
         name="basic"
-        initialValues={{ remember: true }}
+        initialValues={{ remember: true, endRole: 'CLIENT' }}
         onFinish={onFinish}
         autoComplete="off"
       >
@@ -40,6 +41,16 @@ export const LoginForm = (props: {
             className={styles.loginInput}
             size="large"
             placeholder="请输入您的账号"
+          />
+        </Form.Item>
+
+        <Form.Item name="endRole">
+          <Segmented
+            block
+            options={[
+              { label: '客户身份', value: 'CLIENT' },
+              { label: '计算节点管理员', value: 'CENTER' },
+            ]}
           />
         </Form.Item>
 

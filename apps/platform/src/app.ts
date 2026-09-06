@@ -2,6 +2,8 @@ import { history } from 'umi';
 import request from 'umi-request';
 import { v4 as uuidv4 } from 'uuid';
 
+import { clearSessionIdentity } from '@/security/crypto';
+
 const SESSION_INVALID_CODE = 202011605;
 
 request.interceptors.request.use((url, options) => {
@@ -35,6 +37,8 @@ request.interceptors.response.use(async (response) => {
   if (status?.code === SESSION_INVALID_CODE) {
     localStorage.removeItem('User-Token');
     localStorage.removeItem('neverLogined');
+    localStorage.removeItem('Confidential-End-Role');
+    clearSessionIdentity();
     history.replace('/login');
   }
   return response;

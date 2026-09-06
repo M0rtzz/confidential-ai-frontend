@@ -1,3 +1,4 @@
+import { forgetAllDeks } from './dekVault';
 import { hpkeSuite } from './envelope';
 import {
   base64UrlToBytes,
@@ -13,7 +14,9 @@ const DEFAULT_OUTPUT_INFO = new TextEncoder().encode('ds-confidential/v1/odk');
 const IDENTITY_DB = 'confidential-asset-key-store';
 const IDENTITY_STORE = 'identities';
 
-type StoredIdentity = {
+export type StoredIdentity = {
+  scope: string;
+  keyVersion: number;
   kid: string;
   encryptionPublicKey: string;
   signingPublicKey: string;
@@ -21,6 +24,14 @@ type StoredIdentity = {
   encryptionPrivateKey: CryptoKey;
   signingPrivateKey: CryptoKey;
 };
+
+const identityScope = () => {
+  const value = localStorage.getItem('Confidential-Key-Scope');
+  if (!value) throw new Error('当前登录账号缺少客户密钥作用域，请重新登录');
+  return value;
+};
+
+const storageKey = (scope: string) => `${scope}|current`;
 
 const identityDatabase = () =>
   new Promise<IDBDatabase>((resolve, reject) => {
@@ -34,24 +45,41 @@ const identityDatabase = () =>
     request.onerror = () => reject(request.error);
   });
 
-const loadStoredIdentity = async () => {
+const loadStoredIdentity = async (scope: string) => {
   if (typeof indexedDB === 'undefined') return undefined;
   const database = await identityDatabase();
   return new Promise<StoredIdentity | undefined>((resolve, reject) => {
     const transaction = database.transaction(IDENTITY_STORE, 'readonly');
-    const request = transaction.objectStore(IDENTITY_STORE).get('current');
+    const request = transaction.objectStore(IDENTITY_STORE).get(storageKey(scope));
     request.onsuccess = () => resolve(request.result as StoredIdentity | undefined);
     request.onerror = () => reject(request.error);
     transaction.oncomplete = () => database.close();
   });
 };
 
-const saveStoredIdentity = async (identity: StoredIdentity) => {
+const loadLegacyIdentity = async () => {
+  if (typeof indexedDB === 'undefined') return undefined;
+  const database = await identityDatabase();
+  return new Promise<Omit<StoredIdentity, 'scope' | 'keyVersion'> | undefined>(
+    (resolve, reject) => {
+      const transaction = database.transaction(IDENTITY_STORE, 'readonly');
+      const request = transaction.objectStore(IDENTITY_STORE).get('current');
+      request.onsuccess = () =>
+        resolve(
+          request.result as Omit<StoredIdentity, 'scope' | 'keyVersion'> | undefined,
+        );
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => database.close();
+    },
+  );
+};
+
+export const saveStoredIdentity = async (identity: StoredIdentity) => {
   if (typeof indexedDB === 'undefined') return;
   const database = await identityDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(IDENTITY_STORE, 'readwrite');
-    transaction.objectStore(IDENTITY_STORE).put(identity, 'current');
+    transaction.objectStore(IDENTITY_STORE).put(identity, storageKey(identity.scope));
     transaction.oncomplete = () => {
       database.close();
       resolve();
@@ -135,6 +163,7 @@ let currentIdentity: Promise<SessionCryptoIdentity> | undefined;
 
 const createIdentity = async (): Promise<SessionCryptoIdentity> => {
   assertCryptoAvailable();
+  const scope = identityScope();
   const encryptionKeys = await hpkeSuite.kem.generateKeyPair();
   const encryptionPublicKey = bytesToBase64Url(
     await hpkeSuite.kem.serializePublicKey(encryptionKeys.publicKey),
@@ -167,6 +196,8 @@ const createIdentity = async (): Promise<SessionCryptoIdentity> => {
       openSealedDek(encryptionKeys.privateKey, kid, envelope, aad),
   };
   await saveStoredIdentity({
+    scope,
+    keyVersion: 1,
     ...proof,
     proofOfPossession: identity.proofOfPossession,
     encryptionPrivateKey: encryptionKeys.privateKey,
@@ -176,9 +207,16 @@ const createIdentity = async (): Promise<SessionCryptoIdentity> => {
 };
 
 const loadOrCreateIdentity = async () => {
+  const scope = identityScope();
   try {
-    const stored = await loadStoredIdentity();
+    const stored = await loadStoredIdentity(scope);
     if (stored) return restoreIdentity(stored);
+    const legacy = await loadLegacyIdentity();
+    if (legacy) {
+      const migrated = { ...legacy, scope, keyVersion: 1 };
+      await saveStoredIdentity(migrated);
+      return restoreIdentity(migrated);
+    }
   } catch {
     // Browsers with restricted IndexedDB continue with an in-memory identity.
   }
@@ -190,12 +228,25 @@ export const getSessionIdentity = () => {
   return currentIdentity;
 };
 
-export const destroySessionIdentity = () => {
+export const clearSessionIdentity = () => {
   currentIdentity = undefined;
+  forgetAllDeks();
+};
+
+export const replaceStoredIdentity = async (identity: StoredIdentity) => {
+  await saveStoredIdentity(identity);
+  clearSessionIdentity();
+};
+
+export const currentStoredIdentity = () => loadStoredIdentity(identityScope());
+
+export const destroySessionIdentity = () => {
+  const scope = identityScope();
+  clearSessionIdentity();
   if (typeof indexedDB !== 'undefined') {
     void identityDatabase().then((database) => {
       const transaction = database.transaction(IDENTITY_STORE, 'readwrite');
-      transaction.objectStore(IDENTITY_STORE).delete('current');
+      transaction.objectStore(IDENTITY_STORE).delete(storageKey(scope));
       transaction.oncomplete = () => database.close();
     });
   }

@@ -35,7 +35,10 @@ import {
   CONTENT_ENCRYPTION_CAPABILITIES,
   cryptoAdapter,
   decryptEncryptedFile,
+  decryptEncryptedFileChunk,
   getSessionIdentity,
+  openEncryptedFileDek,
+  STREAMING_FILE_CHUNK_SIZE,
   sha256,
   type ContentEncryptionAlgorithm,
   type PublicKeyInfo,
@@ -49,6 +52,9 @@ import {
   type ConfidentialAssetType,
 } from '@/services/confidential-assets';
 import { ConfidentialComputeApi } from '@/services/confidential-compute';
+import { ConfidentialTrainingApi } from '@/services/confidential-training';
+
+import { releaseTrainingKeys } from '../confidential-training/asset-runtime';
 
 type UploadForm = {
   name: string;
@@ -465,8 +471,13 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       message.error(aiMode ? '请先生成并检查数据' : '请选择文件');
       return;
     }
-    if (uploadType === 'DATA' && !original.name.toLowerCase().endsWith('.csv')) {
-      message.error('数据资产仅支持 CSV 文件');
+    const lowerName = original.name.toLowerCase();
+    const isPackage =
+      lowerName.endsWith('.zip') ||
+      lowerName.endsWith('.tar') ||
+      lowerName.endsWith('.tar.gz');
+    if (!aiMode && !isPackage) {
+      message.error('训练数据和模型必须上传 ZIP、TAR 或 TAR.GZ 完整包');
       return;
     }
     setSubmitting(true);
@@ -474,14 +485,6 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       setStage('加密中');
       setProgress(8);
       const identity = await getSessionIdentity();
-      const encrypted = await cryptoAdapter.encryptFile(
-        original,
-        await ownerKey(values.domainId),
-        (value) => setProgress(Math.max(8, Math.round(value * 0.45))),
-        { algorithm: values.algorithm },
-      );
-      setStage('上传中');
-      setProgress(50);
       const session = await ConfidentialAssetApi.createUpload({
         assetType: uploadType,
         sourceType: aiMode ? 'AI_GENERATED' : 'UPLOAD',
@@ -491,18 +494,23 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
         originalSize: original.size,
         domainId: values.domainId,
         algorithm: values.algorithm,
-        expectedChunks: encrypted.chunks.length,
+        expectedChunks: Math.ceil(original.size / STREAMING_FILE_CHUNK_SIZE),
       });
-      for (let index = 0; index < encrypted.chunks.length; index += 1) {
-        const chunk = encrypted.chunks[index];
-        await ConfidentialAssetApi.uploadChunk(
-          session.uploadSessionId,
-          index,
-          base64UrlToBytes(chunk.ciphertext),
-          chunk.sha256,
-        );
-        setProgress(50 + Math.round(((index + 1) / encrypted.chunks.length) * 35));
-      }
+      const encrypted = await cryptoAdapter.encryptFileStreaming(
+        original,
+        await ownerKey(values.domainId),
+        async (chunk) => {
+          setStage('上传中');
+          await ConfidentialAssetApi.uploadChunk(
+            session.uploadSessionId,
+            chunk.index,
+            chunk.ciphertext,
+            chunk.sha256,
+          );
+        },
+        (value) => setProgress(Math.max(8, Math.min(88, value))),
+        { algorithm: values.algorithm, chunkSize: STREAMING_FILE_CHUNK_SIZE },
+      );
       setStage('校验中');
       setProgress(90);
       const manifest = {
@@ -604,6 +612,22 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       );
     } catch (error) {
       message.error(error instanceof Error ? error.message : '审批操作失败');
+    }
+  };
+
+  const releaseKeys = async (row: AssetUseRequest) => {
+    try {
+      const task = await ConfidentialTrainingApi.detail(row.taskId);
+      if (task.status !== 'WAITING_KEY_RELEASE') {
+        message.warning('计算节点管理员尚未准备本次训练证明会话');
+        return;
+      }
+      await releaseTrainingKeys(task);
+      message.success('模型和数据 DEK 已重新封装给本次 CipherGPU 任务');
+      if (usageAsset) await openUsage(usageAsset);
+      await refresh();
+    } catch (failure) {
+      message.error(failure instanceof Error ? failure.message : '训练密钥释放失败');
     }
   };
 
@@ -796,7 +820,11 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
             </>
           ) : (
             <Form.Item
-              label={uploadType === 'DATA' ? '本地 CSV 文件' : '本地模型权重文件'}
+              label={
+                uploadType === 'DATA'
+                  ? '训练数据包（ZIP、TAR、TAR.GZ）'
+                  : '完整模型包（ZIP、TAR、TAR.GZ）'
+              }
               required
             >
               <Upload
@@ -854,6 +882,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
                 <UsageTable
                   rows={usage.filter((item) => item.status === 'PENDING')}
                   decide={decide}
+                  releaseKeys={releaseKeys}
                 />
               ),
             },
@@ -864,6 +893,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
                 <UsageTable
                   rows={usage.filter((item) => item.status !== 'PENDING')}
                   decide={decide}
+                  releaseKeys={releaseKeys}
                 />
               ),
             },
@@ -962,9 +992,11 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
 const UsageTable = ({
   rows,
   decide,
+  releaseKeys,
 }: {
   rows: AssetUseRequest[];
   decide: (row: AssetUseRequest, action: 'APPROVE' | 'REJECT') => Promise<void>;
+  releaseKeys: (row: AssetUseRequest) => Promise<void>;
 }) => (
   <Table
     rowKey="requestId"
@@ -1007,6 +1039,13 @@ const UsageTable = ({
               </Button>
               <Button size="small" danger onClick={() => void decide(row, 'REJECT')}>
                 拒绝
+              </Button>
+            </Space>
+          ) : row.status === 'APPROVED' && row.taskId.startsWith('train_') ? (
+            <Space direction="vertical" size={2}>
+              <Typography.Text>{row.approvalComment || '已批准'}</Typography.Text>
+              <Button size="small" onClick={() => void releaseKeys(row)}>
+                为本次训练释放密钥
               </Button>
             </Space>
           ) : (
@@ -1056,6 +1095,10 @@ export const ResultAssetPanel = () => {
       });
       return;
     }
+    if (!usingDemo && asset.originalSize > 64 * 1024 * 1024) {
+      message.info('结果包较大，请使用“解密导出”进行逐块解密，避免浏览器内存不足');
+      return;
+    }
     try {
       const bytes = await loadPlain(asset);
       const content = previewBytes(bytes, asset.assetType);
@@ -1066,6 +1109,56 @@ export const ResultAssetPanel = () => {
     }
   };
   const download = async (asset: ConfidentialAsset) => {
+    if (!usingDemo) {
+      const fileWindow = window as typeof window & {
+        showSaveFilePicker?: (options: { suggestedName: string }) => Promise<{
+          createWritable: () => Promise<{
+            write: (data: Uint8Array) => Promise<void>;
+            close: () => Promise<void>;
+          }>;
+        }>;
+      };
+      if (!fileWindow.showSaveFilePicker) {
+        message.error('当前浏览器不支持大文件流式保存，请使用最新版 Chrome 或 Edge');
+        return;
+      }
+      let dek: Uint8Array | undefined;
+      try {
+        const manifest = await ConfidentialAssetApi.downloadManifest(asset.assetId);
+        dek = await openEncryptedFileDek(manifest);
+        const handle = await fileWindow.showSaveFilePicker({
+          suggestedName: asset.originalFileName,
+        });
+        const writable = await handle.createWritable();
+        try {
+          for (const chunk of manifest.chunks) {
+            const ciphertext = await ConfidentialAssetApi.downloadChunk(
+              asset.assetId,
+              chunk.index,
+            );
+            const plaintext = await decryptEncryptedFileChunk(
+              manifest,
+              chunk,
+              ciphertext,
+              dek,
+            );
+            await writable.write(plaintext);
+            plaintext.fill(0);
+            ciphertext.fill(0);
+          }
+        } finally {
+          await writable.close();
+        }
+        message.success('结果已逐块解密并保存，节点中的资产继续保持密文');
+      } catch (error) {
+        if ((error as Error)?.name !== 'AbortError') {
+          message.error(error instanceof Error ? error.message : '结果解密失败');
+        }
+      } finally {
+        dek?.fill(0);
+      }
+      return;
+    }
     let bytes: Uint8Array;
     try {
       bytes = await loadPlain(asset);

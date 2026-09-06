@@ -9,10 +9,12 @@ export const routes = [
       {
         path: '/confidential-compute',
         component: 'confidential-compute',
+        wrappers: ['@/wrappers/client-role-auth'],
       },
       {
         path: '/confidential-training',
         component: 'confidential-training',
+        wrappers: ['@/wrappers/center-role-auth'],
       },
       {
         path: '/llm-confidential-management',

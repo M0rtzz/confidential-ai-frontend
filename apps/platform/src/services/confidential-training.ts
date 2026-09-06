@@ -1,10 +1,15 @@
-import type { EncryptedPayload } from '@/security/crypto';
+import type { EncryptedFileManifestPayload, EncryptedPayload } from '@/security/crypto';
 
 import { ConfidentialAssetApi } from './confidential-assets';
 
 export type TrainingTaskStatus =
   | 'WAITING_APPROVAL'
   | 'AUTHORIZED_WAITING_START'
+  | 'WAITING_KEY_RELEASE'
+  | 'READY_TO_STAGE'
+  | 'ENCRYPTING_OUTPUTS'
+  | 'OUTPUT_READY'
+  | 'CANCELLED'
   | 'RUNNING'
   | 'COMPLETED'
   | 'FAILED'
@@ -32,6 +37,27 @@ export type ConfidentialTrainingTask = {
   progress: number;
   currentEpoch: number;
   metrics: { loss?: number; accuracy?: number };
+  adapterId: 'hf-sequence-classification-v1' | 'hf-causal-lm-sft-lora-v1';
+  trainingConfig: Record<string, unknown>;
+  trainingConfigHash: string;
+  outputRecipientKid: string;
+  taskSpec?: Record<string, unknown> & { taskId: string; expiresAt: string };
+  taskSpecDigest?: string;
+  attestation?: {
+    sessionId: string;
+    teeEphemeralPublicKey: string;
+    expiresAt: string;
+    evidenceType: string;
+    hardwareModel: string;
+    securityProfile: 'a100-sim';
+    simulated: true;
+  };
+  inputManifests?: Array<{
+    slot: string;
+    assetId: string;
+    assetVersionId: string;
+    manifest: EncryptedFileManifestPayload;
+  }>;
   resultDataAssetId?: string;
   resultModelAssetId?: string;
   failureReason?: string;
@@ -60,10 +86,37 @@ export const ConfidentialTrainingApi = {
     api<ConfidentialTrainingTask>('GET', `/confidential-training-tasks/${taskId}`),
   create: (data: Record<string, unknown>) =>
     api<ConfidentialTrainingTask>('POST', '/confidential-training-tasks', data),
+  prepare: (taskId: string, clientNonce: string) =>
+    api<ConfidentialTrainingTask>(
+      'POST',
+      `/confidential-training-tasks/${taskId}/prepare`,
+      { clientNonce },
+    ),
+  releaseKeys: (taskId: string, data: Record<string, unknown>) =>
+    api<ConfidentialTrainingTask>(
+      'POST',
+      `/confidential-training-tasks/${taskId}/key-releases`,
+      data,
+    ),
   start: (taskId: string) =>
     api<ConfidentialTrainingTask>(
       'POST',
       `/confidential-training-tasks/${taskId}/start`,
+    ),
+  collectOutputs: (taskId: string) =>
+    api<ConfidentialTrainingTask>(
+      'POST',
+      `/confidential-training-tasks/${taskId}/outputs/collect`,
+    ),
+  logs: (taskId: string) =>
+    api<{ taskId: string; status: string; logs: string }>(
+      'GET',
+      `/confidential-training-tasks/${taskId}/logs`,
+    ),
+  cancel: (taskId: string) =>
+    api<ConfidentialTrainingTask>(
+      'POST',
+      `/confidential-training-tasks/${taskId}/cancel`,
     ),
   progress: (taskId: string, data: Record<string, unknown>) =>
     api<ConfidentialTrainingTask>(

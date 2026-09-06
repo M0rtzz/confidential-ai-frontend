@@ -2,6 +2,7 @@ import request from 'umi-request';
 
 import type {
   ContentEncryptionAlgorithm,
+  EncryptedFileManifestPayload,
   EncryptedFilePayload,
 } from '@/security/crypto';
 
@@ -151,6 +152,21 @@ export const ConfidentialAssetApi = {
         chunks: Array<{ index: number; sha256: string; ciphertext: string }>;
       };
     }>(`/confidential-assets/${assetId}/preview-sessions`),
+  downloadManifest: (assetId: string) =>
+    get<EncryptedFileManifestPayload>(
+      `/confidential-assets/${assetId}/download-manifest`,
+    ),
+  downloadChunk: async (assetId: string, index: number) => {
+    const response = await fetch(
+      `${base}/confidential-assets/${encodeURIComponent(assetId)}/chunks/${index}`,
+      {
+        credentials: 'include',
+        headers: headers(),
+      },
+    );
+    if (!response.ok) throw new Error(`密文分块下载失败：HTTP ${response.status}`);
+    return new Uint8Array(await response.arrayBuffer());
+  },
   usage: (assetId: string) =>
     get<AssetUseRequest[]>(`/confidential-assets/${assetId}/usage-records`),
   requestUse: (data: Record<string, unknown>) =>

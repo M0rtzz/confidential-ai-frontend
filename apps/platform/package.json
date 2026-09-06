@@ -29,6 +29,7 @@
     "@hpke/core": "^1.9.0",
     "@hpke/dhkem-x25519": "^1.8.0",
     "@noble/ciphers": "2.4.0",
+    "@noble/hashes": "2.0.1",
     "@secretflow/dag": "workspace:^",
     "@secretflow/utils": "workspace:^",
     "ahooks": "^3.7.8",

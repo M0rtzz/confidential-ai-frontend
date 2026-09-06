@@ -1,15 +1,5 @@
-import { ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import {
-  Alert,
-  Button,
-  Descriptions,
-  message,
-  Space,
-  Table,
-  Tag,
-  Tabs,
-  Typography,
-} from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { Alert, Button, message, Space, Table, Tag, Tabs, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ConfidentialModelPanel } from '@/modules/confidential-compute/model-panel';
@@ -27,6 +17,7 @@ const statusColor = (status: string) => {
 
 /** Customer model-package management and operator-safe runtime view. */
 export const LlmConfidentialManagement = () => {
+  const isCenter = localStorage.getItem('Confidential-End-Role') === 'CENTER';
   const [domains, setDomains] = useState<TrustedDomain[]>([]);
   const [modelRefreshToken, setModelRefreshToken] = useState(0);
   const [runtimeRows, setRuntimeRows] = useState<
@@ -46,18 +37,15 @@ export const LlmConfidentialManagement = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [domainRows, runtimeInstances] = await Promise.all([
-        confidentialComputeAdapters.api.listDomains(),
-        ConfidentialModelApi.runtimeInstances(),
-      ]);
+      const domainRows = await confidentialComputeAdapters.api.listDomains();
       setDomains(domainRows.filter((item) => item.trustStatus !== 'blocked'));
-      setRuntimeRows(runtimeInstances);
+      if (isCenter) setRuntimeRows(await ConfidentialModelApi.runtimeInstances());
     } catch (failure) {
       message.error(failure instanceof Error ? failure.message : '运行状态刷新失败');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isCenter]);
 
   useEffect(() => void refresh(), [refresh]);
 
@@ -96,75 +84,74 @@ export const LlmConfidentialManagement = () => {
         style={{ marginBottom: 16 }}
       />
       <Tabs
-        items={[
-          {
-            key: 'customer',
-            label: '客户模型管理',
-            children: (
-              <ConfidentialModelPanel
-                domains={domains}
-                refreshToken={modelRefreshToken}
-              />
-            ),
-          },
-          {
-            key: 'operator',
-            label: '大模型运行查看',
-            children: (
-              <>
-                <Alert
-                  showIcon
-                  type="warning"
-                  message="计算平台只读视图"
-                  description="此视图仅展示运行状态与受控端点，不展示模型权重、模型包内容、明文预览或调用 API Key。"
-                  style={{ marginBottom: 16 }}
-                />
-                <Table
-                  rowKey="deploymentId"
-                  loading={loading}
-                  locale={{ emptyText: '暂无已创建的运行实例' }}
-                  dataSource={runtimeRows}
-                  columns={[
-                    { title: '模型', dataIndex: 'modelName' },
-                    {
-                      title: '版本',
-                      dataIndex: 'version',
-                      render: (value) => (value ? `v${value}` : '-'),
-                    },
-                    { title: '运行实例', dataIndex: 'deploymentId', ellipsis: true },
-                    {
-                      title: '状态',
-                      dataIndex: 'status',
-                      render: (value) => <Tag color={statusColor(value)}>{value}</Tag>,
-                    },
-                    { title: '受控端点', dataIndex: 'endpointPath', ellipsis: true },
-                    {
-                      title: '故障信息',
-                      dataIndex: 'errorCode',
-                      render: (value) => value || '—',
-                    },
-                  ]}
-                  expandable={{
-                    expandedRowRender: (row) => (
-                      <Descriptions size="small" column={2}>
-                        <Descriptions.Item label="计算节点">当前节点</Descriptions.Item>
-                        <Descriptions.Item label="可信域">受控可信域</Descriptions.Item>
-                        <Descriptions.Item label="会话">
-                          {row.authorizationSessionId
-                            ? '已建立（标识已隐藏）'
-                            : '未授权或已停止'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="保护状态">
-                          <SafetyCertificateOutlined /> 密文存储
-                        </Descriptions.Item>
-                      </Descriptions>
-                    ),
-                  }}
-                />
-              </>
-            ),
-          },
-        ]}
+        items={
+          isCenter
+            ? [
+                {
+                  key: 'operator',
+                  label: '大模型运行查看',
+                  children: (
+                    <>
+                      <Alert
+                        showIcon
+                        type="warning"
+                        message="计算平台只读视图"
+                        description="此视图仅展示运行状态与受控端点，不展示模型权重、模型包内容、明文预览或调用 API Key。"
+                        style={{ marginBottom: 16 }}
+                      />
+                      <Table
+                        rowKey="deploymentId"
+                        loading={loading}
+                        locale={{ emptyText: '暂无已创建的运行实例' }}
+                        dataSource={runtimeRows}
+                        columns={[
+                          { title: '模型', dataIndex: 'modelName' },
+                          {
+                            title: '版本',
+                            dataIndex: 'version',
+                            render: (value) => (value ? `v${value}` : '-'),
+                          },
+                          {
+                            title: '运行实例',
+                            dataIndex: 'deploymentId',
+                            ellipsis: true,
+                          },
+                          {
+                            title: '状态',
+                            dataIndex: 'status',
+                            render: (value) => (
+                              <Tag color={statusColor(value)}>{value}</Tag>
+                            ),
+                          },
+                          {
+                            title: '受控端点',
+                            dataIndex: 'endpointPath',
+                            ellipsis: true,
+                          },
+                          {
+                            title: '故障信息',
+                            dataIndex: 'errorCode',
+                            render: (value) => value || '—',
+                          },
+                        ]}
+                      />
+                    </>
+                  ),
+                },
+              ]
+            : [
+                {
+                  key: 'customer',
+                  label: '客户模型管理',
+                  children: (
+                    <ConfidentialModelPanel
+                      domains={domains}
+                      refreshToken={modelRefreshToken}
+                    />
+                  ),
+                },
+              ]
+        }
       />
     </div>
   );

@@ -47,6 +47,7 @@ import {
 
 import { AssetManagementPanel, ResultAssetPanel } from './asset-management';
 import styles from './index.less';
+import { CustomerKeyManagement } from './key-management';
 
 type DataSource = keyof typeof confidentialComputeAdapters;
 type Scenario =
@@ -565,6 +566,7 @@ export const ConfidentialComputeComponent = () => {
             onClick={() => void refresh()}
           />
         </Tooltip>
+        <CustomerKeyManagement />
         <Button
           type="primary"
           icon={<ExperimentOutlined />}
