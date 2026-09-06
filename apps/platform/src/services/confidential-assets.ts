@@ -5,6 +5,7 @@ import type {
   EncryptedFileManifestPayload,
   EncryptedFilePayload,
 } from '@/security/crypto';
+import { activeUserToken } from '@/security/session';
 
 import { responseData } from './data-sandbox';
 
@@ -62,7 +63,7 @@ export type AssetUseRequest = {
 };
 
 const base = '/api/v1alpha1';
-const headers = () => ({ 'User-Token': localStorage.getItem('User-Token') || '' });
+const headers = () => ({ 'User-Token': activeUserToken() });
 const get = <T>(path: string) =>
   request<ApiResponse<T>>(`${base}${path}`, {
     method: 'GET',

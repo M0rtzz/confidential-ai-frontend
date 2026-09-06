@@ -3,12 +3,11 @@ import request from 'umi-request';
 import type {
   ContentEncryptionAlgorithm,
   EncryptedFileManifestPayload,
-  EncryptedPayload,
-} from '@/security/crypto';
-import type {
   EncryptedInferenceRequest,
   EncryptedInferenceResponse,
+  EncryptedPayload,
 } from '@/security/crypto';
+import { activeUserToken } from '@/security/session';
 
 import { responseData } from './data-sandbox';
 
@@ -99,7 +98,7 @@ const get = <T>(path: string) =>
     method: 'GET',
     credentials: 'include',
     headers: {
-      'User-Token': localStorage.getItem('User-Token') || '',
+      'User-Token': activeUserToken(),
     },
   }).then((response) => responseData(response, undefined as T));
 
@@ -109,7 +108,7 @@ const post = <T>(path: string, data: Record<string, unknown> = {}) =>
     data,
     credentials: 'include',
     headers: {
-      'User-Token': localStorage.getItem('User-Token') || '',
+      'User-Token': activeUserToken(),
     },
   }).then((response) => responseData(response, undefined as T));
 
@@ -148,7 +147,7 @@ export const ConfidentialModelApi = {
         headers: {
           'Content-Type': 'application/octet-stream',
           'X-Cipher-SHA256': cipherHash,
-          'User-Token': localStorage.getItem('User-Token') || '',
+          'User-Token': activeUserToken(),
         },
       },
     ).then((response) => responseData(response, undefined as never)),
@@ -221,7 +220,7 @@ export const ConfidentialModelApi = {
         data: payload,
         credentials: 'include',
         headers: {
-          'User-Token': localStorage.getItem('User-Token') || '',
+          'User-Token': activeUserToken(),
         },
         errorHandler: (failure) => {
           const body = failure.data as

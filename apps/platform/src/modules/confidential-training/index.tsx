@@ -206,7 +206,12 @@ export const ConfidentialTrainingComponent = () => {
       setDetail(updated);
       await refresh();
     } catch (failure) {
-      message.error(failure instanceof Error ? failure.message : '训练操作失败');
+      const errorDetail = failure instanceof Error ? failure.message : '训练操作失败';
+      message.error(
+        errorDetail === 'POLICY_DENIED'
+          ? '当前标签页不是计算节点管理员会话，请退出后选择 CENTER 身份重新登录'
+          : errorDetail,
+      );
     } finally {
       setWorkingId(undefined);
     }

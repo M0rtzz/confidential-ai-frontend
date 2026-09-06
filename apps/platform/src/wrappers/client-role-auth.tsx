@@ -1,10 +1,8 @@
 import { Navigate, Outlet } from 'umi';
 
+import { activeEndRole } from '@/security/session';
+
 const ClientRoleAuth = () =>
-  localStorage.getItem('Confidential-End-Role') === 'CLIENT' ? (
-    <Outlet />
-  ) : (
-    <Navigate to="/confidential-training" />
-  );
+  activeEndRole() === 'CLIENT' ? <Outlet /> : <Navigate to="/confidential-training" />;
 
 export default ClientRoleAuth;

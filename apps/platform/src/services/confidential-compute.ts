@@ -3,6 +3,7 @@ import request from 'umi-request';
 import { mockAuditEvents } from '@/mocks/audit';
 import { mockTrustedDomains } from '@/mocks/trustedDomains';
 import type { ConfidentialTaskOutput, TrustedDomain } from '@/security/crypto';
+import { activeUserToken } from '@/security/session';
 
 import { responseData } from './data-sandbox';
 
@@ -40,7 +41,7 @@ const get = <T>(path: string) =>
     method: 'GET',
     credentials: 'include',
     headers: {
-      'User-Token': localStorage.getItem('User-Token') || '',
+      'User-Token': activeUserToken(),
     },
   }).then((response) => responseData(response, undefined as T));
 
@@ -50,7 +51,7 @@ const post = <T>(path: string, data: Record<string, unknown> = {}) =>
     data,
     credentials: 'include',
     headers: {
-      'User-Token': localStorage.getItem('User-Token') || '',
+      'User-Token': activeUserToken(),
     },
   }).then((response) => responseData(response, undefined as T));
 

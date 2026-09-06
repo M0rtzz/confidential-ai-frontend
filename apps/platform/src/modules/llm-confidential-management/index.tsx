@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { ConfidentialModelPanel } from '@/modules/confidential-compute/model-panel';
 import type { TrustedDomain } from '@/security/crypto';
+import { activeEndRole } from '@/security/session';
 import { confidentialComputeAdapters } from '@/services/confidential-compute';
 import { ConfidentialModelApi } from '@/services/confidential-models';
 
@@ -17,7 +18,7 @@ const statusColor = (status: string) => {
 
 /** Customer model-package management and operator-safe runtime view. */
 export const LlmConfidentialManagement = () => {
-  const isCenter = localStorage.getItem('Confidential-End-Role') === 'CENTER';
+  const isCenter = activeEndRole() === 'CENTER';
   const [domains, setDomains] = useState<TrustedDomain[]>([]);
   const [modelRefreshToken, setModelRefreshToken] = useState(0);
   const [runtimeRows, setRuntimeRows] = useState<

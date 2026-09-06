@@ -1,10 +1,8 @@
 import { Navigate, Outlet } from 'umi';
 
+import { activeEndRole } from '@/security/session';
+
 const CenterRoleAuth = () =>
-  localStorage.getItem('Confidential-End-Role') === 'CENTER' ? (
-    <Outlet />
-  ) : (
-    <Navigate to="/confidential-compute" />
-  );
+  activeEndRole() === 'CENTER' ? <Outlet /> : <Navigate to="/confidential-compute" />;
 
 export default CenterRoleAuth;

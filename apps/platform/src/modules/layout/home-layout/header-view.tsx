@@ -26,6 +26,7 @@ import { ChangePasswordModal } from '@/modules/login/component/change-password';
 import { LoginService } from '@/modules/login/login.service';
 import platformConfig from '@/platform.config';
 import { clearSessionIdentity } from '@/security/crypto';
+import { clearActiveSession } from '@/security/session';
 import { logout } from '@/services/secretpad/AuthController';
 import { get } from '@/services/secretpad/NodeController';
 import { get as getInst } from '@/services/secretpad/InstController';
@@ -87,9 +88,8 @@ export const HeaderComponent = () => {
         name: loginService?.userInfo?.name,
       },
     );
-    localStorage.removeItem('User-Token');
+    clearActiveSession();
     localStorage.removeItem('neverLogined');
-    localStorage.removeItem('Confidential-End-Role');
     clearSessionIdentity();
     history.replace('/login');
   };

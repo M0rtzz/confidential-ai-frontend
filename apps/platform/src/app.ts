@@ -3,12 +3,13 @@ import request from 'umi-request';
 import { v4 as uuidv4 } from 'uuid';
 
 import { clearSessionIdentity } from '@/security/crypto';
+import { activeUserToken, clearActiveSession } from '@/security/session';
 
 const SESSION_INVALID_CODE = 202011605;
 
 request.interceptors.request.use((url, options) => {
   const traceId = uuidv4(); // 生成唯一的 traceId
-  const token = localStorage.getItem('User-Token') || '';
+  const token = activeUserToken();
   const isFormData =
     typeof FormData !== 'undefined' && options.data instanceof FormData;
   const isBinary =
@@ -35,9 +36,8 @@ request.interceptors.request.use((url, options) => {
 request.interceptors.response.use(async (response) => {
   const { status } = await response.clone().json();
   if (status?.code === SESSION_INVALID_CODE) {
-    localStorage.removeItem('User-Token');
+    clearActiveSession();
     localStorage.removeItem('neverLogined');
-    localStorage.removeItem('Confidential-End-Role');
     clearSessionIdentity();
     history.replace('/login');
   }
