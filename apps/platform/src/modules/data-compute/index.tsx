@@ -43,6 +43,14 @@ import {
   responseData,
 } from '@/services/data-sandbox';
 
+import {
+  expired,
+  useAccessClock,
+  usageDeadline,
+  viewDeadline,
+  resultManagement,
+} from '@/modules/data-sandbox-mvp/result-access';
+
 import styles from './index.less';
 
 const useComputeQuery = () => {
@@ -246,10 +254,13 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
   const [data, setData] = useState<DataSandboxRecord>({});
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<DataSandboxRecord>();
+  const { now, syncClock } = useAccessClock();
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      setData(responseData(await DataComputeApi.sandboxDbDirectory(sandboxId), {}));
+      const next = responseData(await DataComputeApi.sandboxDbDirectory(sandboxId), {});
+      syncClock(next.serverTime);
+      setData(next);
     } catch (e: any) {
       message.error(e.message || '加载沙箱数据目录失败');
     } finally {
@@ -257,7 +268,26 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
     }
   }, [sandboxId]);
   useEffect(() => void refresh(), [refresh]);
+  useEffect(() => {
+    const row = (data.items || []).find(
+      (item: DataSandboxRecord) => item.tableName === preview?.tableName,
+    );
+    if (row && (expired(usageDeadline(row), now) || expired(viewDeadline(row), now)))
+      setPreview(undefined);
+  }, [now, data, preview]);
   const previewTable = async (tableName: string) => {
+    const row = (data.items || []).find(
+      (item: DataSandboxRecord) => item.tableName === tableName,
+    );
+    if (
+      !row ||
+      !row.canPreview ||
+      expired(usageDeadline(row), now) ||
+      expired(viewDeadline(row), now)
+    ) {
+      message.warning('该数据已过期或不可预览');
+      return;
+    }
     try {
       const raw = responseData(
         await DataComputeApi.sandboxDbPreview(sandboxId, tableName, 20),
@@ -281,22 +311,6 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
       });
     } catch (e: any) {
       message.error(e.message || '数据预览失败');
-    }
-  };
-  const exportTable = async (tableName: string) => {
-    try {
-      const blob = await DataComputeApi.sandboxDbTableExport(sandboxId, tableName);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${tableName.replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      message.success(`已导出 ${tableName}.csv`);
-    } catch (e: any) {
-      message.error(e.message || '导出失败');
     }
   };
   const mountRows = (data.items || [])
@@ -334,14 +348,27 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
       dataIndex: 'view_until',
       render: (value: string, row: DataSandboxRecord) => {
         const time = value || row.access_end;
-        return time ? formatTime(time) : row._kind === 'result' ? '长期' : '-';
+        return time ? formatTime(time) : '待确认期限';
       },
     },
     {
-      title: '导出截止时间',
-      dataIndex: 'export_until',
-      render: (value: string, row: DataSandboxRecord) =>
-        row._kind === 'result' && row.allow_export ? formatTime(value) : '-',
+      title: '使用截止时间',
+      render: (_: unknown, row: DataSandboxRecord) =>
+        usageDeadline(row) ? formatTime(usageDeadline(row)) : '待确认期限',
+    },
+    {
+      title: '状态',
+      render: (_: unknown, row: DataSandboxRecord) => (
+        <Tag>
+          {expired(usageDeadline(row), now)
+            ? '使用已过期'
+            : row.canUse === false
+            ? '不可使用'
+            : usageDeadline(row)
+            ? '有效'
+            : '待确认期限'}
+        </Tag>
+      ),
     },
     {
       title: '操作',
@@ -349,18 +376,19 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
         <Space>
           <Button
             type="link"
-            disabled={!r.tableName || !r.canPreview}
+            disabled={
+              !r.tableName ||
+              !r.canPreview ||
+              expired(usageDeadline(r), now) ||
+              expired(viewDeadline(r), now)
+            }
             onClick={() => previewTable(r.tableName)}
           >
             预览
           </Button>
           {r._kind === 'result' && (
-            <Button
-              type="link"
-              disabled={!r.tableName || !r.canExport}
-              onClick={() => exportTable(r.tableName)}
-            >
-              导出开发结果
+            <Button type="link" onClick={() => resultManagement({ ...r, sandboxId })}>
+              前往结果管理
             </Button>
           )}
         </Space>
@@ -863,8 +891,7 @@ const TreeStructureSection = ({
   const reportTreeIndex = Number(data.treeIndex || 0);
   const sameTree = reportTreeIndex === treeIndex;
   const reportStatus = sameTree ? String(data.status || '') : 'NOT_COMPUTED';
-  const visibleData =
-    sameTree && data.status === 'AVAILABLE' ? data : localData;
+  const visibleData = sameTree && data.status === 'AVAILABLE' ? data : localData;
   const nodes = reportRows(visibleData.nodes);
   const treeCount = Number(visibleData.treeCount || data.treeCount || 0);
   useEffect(() => {
@@ -890,8 +917,7 @@ const TreeStructureSection = ({
       !modelId ||
       reportStatus === 'AVAILABLE' ||
       reportStatus === 'UNSUPPORTED' ||
-      ((reportStatus === 'FAILED' || reportStatus === 'BLOCKED') &&
-        retryCount === 0) ||
+      ((reportStatus === 'FAILED' || reportStatus === 'BLOCKED') && retryCount === 0) ||
       requestedRef.current === requestKey
     ) {
       return;
@@ -934,8 +960,7 @@ const TreeStructureSection = ({
         if (status === 'FAILED' || status === 'BLOCKED') {
           setComputing(false);
           setComputeError(
-            result.message ||
-              `树结构生成${status === 'BLOCKED' ? '被阻断' : '失败'}`,
+            result.message || `树结构生成${status === 'BLOCKED' ? '被阻断' : '失败'}`,
           );
           return;
         }
@@ -1040,9 +1065,7 @@ const TreeStructureSection = ({
       </Space>
     );
   }
-  const nodeMap = new Map(
-    nodes.map((node) => [String(node.nodeId ?? node.id), node]),
-  );
+  const nodeMap = new Map(nodes.map((node) => [String(node.nodeId ?? node.id), node]));
   const childIds = new Set(
     nodes
       .flatMap((node) => [node.leftChild ?? node.left, node.rightChild ?? node.right])
@@ -1182,11 +1205,7 @@ const TreeStructureSection = ({
             title: '类型',
             width: 90,
             render: (_, row) =>
-              (row.isLeaf ?? row.leaf) ? (
-                <Tag>叶子</Tag>
-              ) : (
-                <Tag color="blue">分裂</Tag>
-              ),
+              row.isLeaf ?? row.leaf ? <Tag>叶子</Tag> : <Tag color="blue">分裂</Tag>,
           },
           { title: '分裂特征', dataIndex: 'feature', render: reportValue },
           { title: '比较方式', dataIndex: 'comparison', render: reportValue },

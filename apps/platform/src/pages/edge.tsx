@@ -205,11 +205,10 @@ const menuItems: EdgeMenuItem[] = [
     key: 'model-approval',
   },
   {
-    label: '结果导出审批',
+    label: '结果导出与审批',
     icon: <ExportOutlined />,
     component: <TeeExportApprovalComponent />,
     key: 'tee-export-approval',
-    ends: [EndRole.CLIENT],
   },
   {
     label: '统一日志',

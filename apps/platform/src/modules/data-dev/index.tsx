@@ -22,22 +22,20 @@ import {
   Typography,
   Upload,
 } from 'antd';
-import dayjs from 'dayjs';
 import { parse } from 'query-string';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'umi';
 
 import { formatTime, MvpPage, RefreshButton } from '@/modules/data-sandbox-mvp/common';
-import { LoginService } from '@/modules/login/login.service';
-import { requestErrorMessage } from '@/modules/tee-export-approval/error';
-import {
-  DataComputeApi,
-  DataDevApi,
-  TeeExportApi,
-  responseData,
-} from '@/services/data-sandbox';
+import { DataComputeApi, DataDevApi, responseData } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
-import { useModel } from '@/util/valtio-helper';
+import {
+  expired,
+  useAccessClock,
+  usageDeadline,
+  viewDeadline,
+  resultManagement,
+} from '@/modules/data-sandbox-mvp/result-access';
 
 const artifactTypeLabels: Record<string, string> = {
   JAR: 'JAR 制品',
@@ -126,8 +124,6 @@ const renderPreviewTable = (preview: DataSandboxRecord, showRowCount = true) => 
 
 /** P6 已验签结果的 P7 展示：密文只展示元数据，REPORT 直接展示明文内容。 */
 const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
-  const loginService = useModel(LoginService);
-  const canRequestExport = loginService.userInfo?.endRole === 'CLIENT';
   let summary: DataSandboxRecord = {};
   let parseError = false;
   try {
@@ -143,23 +139,6 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
     ? summary.encryptedOutputs
     : [];
   const reports = Array.isArray(summary.reports) ? summary.reports : [];
-  const submitExport = async (resultId: string) => {
-    try {
-      await TeeExportApi.create(resultId);
-      message.success('导出申请已提交，请到「结果导出审批」查看票面与下载');
-    } catch (error: unknown) {
-      message.error(requestErrorMessage(error, '提交导出申请失败'));
-    }
-  };
-  const requestExport = (resultId: string) => {
-    Modal.confirm({
-      title: '申请导出密文结果',
-      content: '接收方为当前机构，系统将使用本机构受管证书密封结果密钥。确认提交？',
-      okText: '提交申请',
-      cancelText: '取消',
-      onOk: () => submitExport(resultId),
-    });
-  };
   if (parseError) {
     return <Alert showIcon type="error" message="TEE 结果摘要无法解析" />;
   }
@@ -205,17 +184,9 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
               message="TEE 结果为密文对象，导出审批完成前不提供明文预览。"
               style={{ margin: '12px 0' }}
             />
-            {canRequestExport ? (
-              <Button type="primary" onClick={() => requestExport(item.resultId)}>
-                申请导出
-              </Button>
-            ) : (
-              <Tooltip title="中心端只负责可信计算与审批裁决。请由任一贡献机构在客户端的“结果导出审批”中发起申请。">
-                <span>
-                  <Button disabled>请在贡献机构客户端申请导出</Button>
-                </span>
-              </Tooltip>
-            )}
+            <Button type="primary" onClick={() => resultManagement(item)}>
+              前往结果管理
+            </Button>
           </Card>
         );
       })}
@@ -264,6 +235,7 @@ export const DataDevComponent = () => {
   const [taskOpen, setTaskOpen] = useState(false);
   const [taskForm] = Form.useForm();
   const taskExec = Form.useWatch('execType', taskForm);
+  const selectedTable = Form.useWatch('sourceTable', taskForm);
   const taskArtifactName = Form.useWatch('artifactName', taskForm);
   const allowResultExport = Form.useWatch('allowExport', taskForm);
   const [preview, setPreview] = useState<DataSandboxRecord>();
@@ -283,9 +255,13 @@ export const DataDevComponent = () => {
   const [resultLoading, setResultLoading] = useState(false);
   const [resultControls, setResultControls] = useState<DataSandboxRecord[]>([]);
   const [controlLoading, setControlLoading] = useState(false);
-  const [controlItem, setControlItem] = useState<DataSandboxRecord>();
-  const [controlForm] = Form.useForm();
-  const controlAllowExport = Form.useWatch('allowExport', controlForm);
+  const { now, syncClock } = useAccessClock();
+
+  useEffect(() => {
+    const row = sandboxTables.find((item) => item.tableName === selectedTable);
+    if (row && (expired(usageDeadline(row), now) || expired(viewDeadline(row), now)))
+      setPreview(undefined);
+  }, [now, sandboxTables, selectedTable]);
 
   /* ------------------------------- 数据加载 ------------------------------- */
 
@@ -330,11 +306,11 @@ export const DataDevComponent = () => {
     if (!sandboxId) return;
     setControlLoading(true);
     try {
-      setResultControls(
-        responseData(await DataComputeApi.resultControls(sandboxId), []),
-      );
+      const items = responseData(await DataComputeApi.resultControls(sandboxId), []);
+      syncClock(items[0]?.serverTime);
+      setResultControls(items);
     } catch (error: any) {
-      message.error(error.message || '加载产出权限失败');
+      message.error(error.message || '加载计算产出失败');
     } finally {
       setControlLoading(false);
     }
@@ -357,7 +333,11 @@ export const DataDevComponent = () => {
       DataDevApi.artifacts().then((res) => setAllArtifacts(responseData(res, [])));
       if (sandboxId) {
         DataComputeApi.sandboxDbDirectory(sandboxId)
-          .then((res) => setSandboxTables(responseData(res, {}).items || []))
+          .then((res) => {
+            const data = responseData(res, {});
+            syncClock(data.serverTime);
+            setSandboxTables(data.items || []);
+          })
           .catch((error: any) => message.error(error.message || '加载沙箱表失败'));
       }
     }
@@ -515,6 +495,16 @@ export const DataDevComponent = () => {
       message.warning('请先选择沙箱表');
       return;
     }
+    const source = sandboxTables.find((item) => item.tableName === sourceTable);
+    if (
+      !source ||
+      source.canPreview === false ||
+      expired(usageDeadline(source), now) ||
+      expired(viewDeadline(source), now)
+    ) {
+      message.warning('该数据已过期或不可预览');
+      return;
+    }
     try {
       const raw = responseData(
         await DataDevApi.sandboxPreview(sandboxId, sourceTable, limit || 10),
@@ -589,7 +579,10 @@ export const DataDevComponent = () => {
         const source = sandboxTables.find(
           (item) => item.tableName === values.sourceTable,
         );
-        if (source?.canUse === false) {
+        if (
+          source &&
+          (source.canUse === false || expired(usageDeadline(source), now))
+        ) {
           message.error(source.disabledReason || '该挂载数据当前不可使用');
           return;
         }
@@ -995,7 +988,7 @@ export const DataDevComponent = () => {
             ? [
                 {
                   key: 'result-controls',
-                  label: '产出与权限',
+                  label: '计算产出',
                   children: (
                     <Table
                       rowKey="table_name"
@@ -1022,58 +1015,46 @@ export const DataDevComponent = () => {
                         {
                           title: '查看截止时间',
                           dataIndex: 'view_until',
-                          render: (value: string, row: DataSandboxRecord) =>
-                            row.tee_encrypted
-                              ? '密文不可预览'
-                              : row.tee_report
-                              ? '按输出规则可查看'
-                              : formatTime(value),
+                          render: (_: string, row: DataSandboxRecord) =>
+                            viewDeadline(row)
+                              ? formatTime(viewDeadline(row))
+                              : '待确认期限',
                         },
                         {
-                          title: '权限方式',
-                          dataIndex: 'allow_export',
-                          render: (value: boolean, row: DataSandboxRecord) =>
-                            row.tee_encrypted ? (
-                              <Space direction="vertical" size={0}>
-                                <Tag color="processing">贡献机构多方审批</Tag>
-                                <span>{row.exportState || 'PENDING_APPROVAL'}</span>
-                              </Space>
-                            ) : row.tee_report ? (
-                              <Tag color="success">输出规则已授权</Tag>
-                            ) : (
-                              <Tag color={value ? 'success' : 'default'}>
-                                {value ? '允许导出' : '禁止导出'}
+                          title: '生成时间',
+                          render: (_: unknown, row: DataSandboxRecord) =>
+                            formatTime(row.createdAt || row.created_at),
+                        },
+                        {
+                          title: '运行标识',
+                          render: (_: unknown, row: DataSandboxRecord) =>
+                            row.runId || row.run_id || row.task_id || '-',
+                        },
+                        {
+                          title: '状态',
+                          render: (_: unknown, row: DataSandboxRecord) => (
+                            <Space>
+                              <Tag>
+                                {expired(viewDeadline(row), now)
+                                  ? '已过期'
+                                  : viewDeadline(row)
+                                  ? '有效'
+                                  : '待确认期限'}
                               </Tag>
-                            ),
+                              {row.tee_encrypted && <span>密文不可预览</span>}
+                            </Space>
+                          ),
                         },
                         {
                           title: '操作',
-                          render: (_: unknown, row: DataSandboxRecord) =>
-                            row.tee_encrypted || row.tee_report ? (
-                              <Typography.Text type="secondary">
-                                {row.tee_encrypted
-                                  ? '由导出审批管理'
-                                  : '由输出规则管理'}
-                              </Typography.Text>
-                            ) : (
-                              <Button
-                                type="link"
-                                onClick={() => {
-                                  setControlItem(row);
-                                  controlForm.setFieldsValue({
-                                    viewUntil: row.view_until
-                                      ? dayjs(row.view_until)
-                                      : undefined,
-                                    allowExport: !!row.allow_export,
-                                    exportUntil: row.export_until
-                                      ? dayjs(row.export_until)
-                                      : undefined,
-                                  });
-                                }}
-                              >
-                                设置权限
-                              </Button>
-                            ),
+                          render: (_: unknown, row: DataSandboxRecord) => (
+                            <Button
+                              type="link"
+                              onClick={() => resultManagement({ ...row, sandboxId })}
+                            >
+                              前往结果管理
+                            </Button>
+                          ),
                         },
                       ]}
                     />
@@ -1083,86 +1064,6 @@ export const DataDevComponent = () => {
             : []),
         ]}
       />
-
-      <Modal
-        title={`产出权限：${controlItem?.name || controlItem?.table_name || ''}`}
-        open={!!controlItem}
-        onCancel={() => setControlItem(undefined)}
-        onOk={() => controlForm.submit()}
-        okText="保存"
-      >
-        <Form
-          form={controlForm}
-          layout="vertical"
-          onFinish={async (values) => {
-            if (!controlItem) return;
-            try {
-              responseData(
-                await DataComputeApi.saveResultControl({
-                  sandboxId,
-                  tableName: controlItem.table_name,
-                  taskId: controlItem.task_id,
-                  viewUntil: values.viewUntil?.toISOString?.() || '',
-                  allowExport: values.allowExport,
-                  exportUntil: values.allowExport
-                    ? values.exportUntil?.toISOString?.() || ''
-                    : '',
-                  version: controlItem.version || 0,
-                }),
-                {},
-              );
-              message.success('产出权限已更新');
-              setControlItem(undefined);
-              refreshResultControls();
-            } catch (error: any) {
-              message.error(error.message || '保存失败');
-            }
-          }}
-        >
-          <Form.Item
-            name="viewUntil"
-            label="查看截止时间"
-            rules={[{ required: true, message: '请设置查看截止时间' }]}
-          >
-            <DatePicker
-              showTime={{ format: 'HH:mm:ss' }}
-              format="YYYY-MM-DD HH:mm:ss"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-          <Form.Item
-            name="allowExport"
-            label="允许导出开发结果"
-            valuePropName="checked"
-          >
-            <Switch checkedChildren="允许" unCheckedChildren="禁止" />
-          </Form.Item>
-          {controlAllowExport && (
-            <Form.Item
-              name="exportUntil"
-              label="导出截止时间"
-              dependencies={['viewUntil']}
-              rules={[
-                { required: true, message: '允许导出时必须设置导出截止时间' },
-                ({ getFieldValue }) => ({
-                  validator(_, value) {
-                    const viewUntil = getFieldValue('viewUntil');
-                    return !value || !viewUntil || !value.isAfter(viewUntil)
-                      ? Promise.resolve()
-                      : Promise.reject(new Error('导出截止时间不能晚于查看截止时间'));
-                  },
-                }),
-              ]}
-            >
-              <DatePicker
-                showTime={{ format: 'HH:mm:ss' }}
-                format="YYYY-MM-DD HH:mm:ss"
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          )}
-        </Form>
-      </Modal>
 
       {/* 制品 编辑元数据 */}
       <Modal
@@ -1352,11 +1253,12 @@ export const DataDevComponent = () => {
                   )
                   .map((item) => ({
                     value: item.tableName,
-                    disabled: item.canUse === false,
+                    disabled:
+                      item.canUse === false || expired(usageDeadline(item), now),
                     label: `${item.tableName}（${item.name || item.tableName}${
                       item.source === 'SYNCED' ? '·跨节点' : ''
                     }）${
-                      item.canUse === false
+                      item.canUse === false || expired(usageDeadline(item), now)
                         ? ` · ${item.disabledReason || '不可使用'}`
                         : item.use_until
                         ? ` · 可使用至 ${formatTime(item.use_until)}`
@@ -1370,7 +1272,21 @@ export const DataDevComponent = () => {
                 <Form.Item name="limit" noStyle>
                   <InputNumber min={1} max={100} style={{ width: 80 }} />
                 </Form.Item>
-                <Button onClick={previewSandboxTable}>预览前 N 行</Button>
+                <Button
+                  disabled={
+                    !selectedTable ||
+                    sandboxTables.some(
+                      (row) =>
+                        row.tableName === selectedTable &&
+                        (row.canPreview === false ||
+                          expired(usageDeadline(row), now) ||
+                          expired(viewDeadline(row), now)),
+                    )
+                  }
+                  onClick={previewSandboxTable}
+                >
+                  预览前 N 行
+                </Button>
               </Space>
             </Form.Item>
           </Space>
@@ -1539,7 +1455,7 @@ export const DataDevComponent = () => {
                 type="info"
                 showIcon
                 style={{ marginTop: 16, marginBottom: 12 }}
-                message="产出权限随任务保存；结果生成后可在“产出与权限”中调整。"
+                message="产出权限随任务保存；结果生成后可在“结果导出与审批”中管理。"
               />
               <Space size="large" wrap align="start">
                 <Form.Item

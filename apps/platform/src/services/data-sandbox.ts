@@ -624,14 +624,18 @@ const teePost = <T>(path: string, data?: DataSandboxRecord) =>
   });
 
 export const TeeExportApi = {
+  catalog: () => teeGet<DataSandboxRecord>('/exports/catalog'),
   exportable: () => teeGet<DataSandboxRecord>('/exports/exportable'),
   mine: () => teeGet<DataSandboxRecord>('/exports/mine'),
+  history: () => teeGet<DataSandboxRecord>('/exports/history'),
   pending: () => teeGet<DataSandboxRecord>('/exports/pending'),
   detail: (exportId: string) => teeGet<DataSandboxRecord>(`/exports/${exportId}`),
-  create: (resultId: string) =>
+  create: (resultId: string, exportUntil: string, purpose: string) =>
     teePost<DataSandboxRecord>('/exports', {
       requestId: `export-${traceId()}`,
       resultId,
+      exportUntil,
+      purpose,
     }),
   action: (exportId: string, action: 'APPROVE' | 'REJECT', comment = '') =>
     teePost<DataSandboxRecord>(`/exports/${exportId}/action`, { action, comment }),
