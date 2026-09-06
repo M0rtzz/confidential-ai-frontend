@@ -5,6 +5,7 @@ import {
   FileProtectOutlined,
   InfoCircleOutlined,
   PauseCircleOutlined,
+  ReloadOutlined,
   SafetyCertificateOutlined,
   SendOutlined,
 } from '@ant-design/icons';
@@ -15,11 +16,9 @@ import {
   Drawer,
   Form,
   Input,
-  InputNumber,
   message,
   Modal,
   Progress,
-  Segmented,
   Select,
   Space,
   Table,
@@ -36,18 +35,16 @@ import {
   bytesToBase64Url,
   canonicalBytes,
   CONTENT_ENCRYPTION_CAPABILITIES,
-  createEncryptedInferenceRequest,
   decryptConfidentialOutput,
   cryptoAdapter,
   DEFAULT_CONTENT_ENCRYPTION_ALGORITHM,
   downloadDecryptedOutput,
-  forgetDek,
   getSessionIdentity,
   randomId,
+  restoreEncryptedFileDek,
   sealRememberedDek,
   sha256,
   type ContentEncryptionAlgorithm,
-  type ConfidentialInferenceSession,
   type ConfidentialTaskOutput,
   type EncryptedFilePayload,
   type EncryptedPayload,
@@ -84,7 +81,6 @@ type InferenceTarget = {
   deploymentId: string;
   modelName: string;
   sourceType: ConfidentialModelSource;
-  session: ConfidentialInferenceSession;
 };
 
 const statusColor: Record<string, string> = {
@@ -102,7 +98,7 @@ const statusColor: Record<string, string> = {
 const statusLabel = (value: string) => value;
 
 const sourceLabel = (source: ConfidentialModelSource) =>
-  source === 'LOCAL_WEIGHTS' ? '本地权重' : 'OpenAI 兼容 API';
+  source === 'LOCAL_WEIGHTS' ? '加密模型包' : 'OpenAI 兼容 API';
 
 const ownerEncryptionKey = async (
   identity: SessionCryptoIdentity,
@@ -123,8 +119,6 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
   const [loading, setLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [versionTarget, setVersionTarget] = useState<ConfidentialModel>();
-  const [sourceType, setSourceType] =
-    useState<ConfidentialModelSource>('LOCAL_WEIGHTS');
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -171,14 +165,12 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
   );
 
   const openImport = (target?: ConfidentialModel) => {
-    const nextSource = target?.sourceType || 'LOCAL_WEIGHTS';
     setVersionTarget(target);
-    setSourceType(nextSource);
     setFileList([]);
     setProgress(0);
     form.resetFields();
     form.setFieldsValue({
-      sourceType: nextSource,
+      sourceType: 'LOCAL_WEIGHTS',
       name: target?.name,
       description: target?.description,
       domainId: target?.domainId || domainOptions[0]?.value,
@@ -202,7 +194,15 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
 
   const importWeights = async (values: ImportForm) => {
     const file = fileList[0]?.originFileObj;
-    if (!file) throw new Error('请选择权重文件或模型目录压缩包');
+    if (!file) throw new Error('请选择完整模型包压缩文件');
+    const fileName = file.name.toLowerCase();
+    if (
+      !fileName.endsWith('.zip') &&
+      !fileName.endsWith('.tar') &&
+      !fileName.endsWith('.tar.gz')
+    ) {
+      throw new Error('大模型请上传 ZIP、TAR 或 TAR.GZ 格式的完整模型包');
+    }
     const identity = await registerIdentity();
     const publicKey = await ownerEncryptionKey(identity, values.domainId);
     const encrypted = await cryptoAdapter.encryptFile(
@@ -254,6 +254,12 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       ownerSignature,
       runtimeConfig: {
         engine: 'vllm',
+        assetKind: 'LLM_MODEL_PACKAGE',
+        packageFormat: fileName.endsWith('.zip')
+          ? 'ZIP'
+          : fileName.endsWith('.tar.gz')
+          ? 'TAR_GZ'
+          : 'TAR',
         originalFileName: file.name,
         servedModelName: values.servedModelName || 'deepseek-llm-7b-chat',
       },
@@ -269,35 +275,6 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       });
     }
     setProgress(100);
-  };
-
-  const importOpenAi = async (values: ImportForm) => {
-    if (!values.apiKey) throw new Error('请输入 API Key');
-    const identity = await registerIdentity();
-    const publicKey = await ownerEncryptionKey(identity, values.domainId);
-    const encryptedCredential = await cryptoAdapter.encryptText(
-      values.apiKey,
-      publicKey,
-    );
-    const imported = await ConfidentialModelApi.createOpenAi({
-      modelId: versionTarget?.modelId,
-      name: values.name,
-      description: values.description || '',
-      domainId: values.domainId,
-      baseUrl: values.baseUrl || '',
-      upstreamModelId: values.upstreamModelId || '',
-      encryptedCredential,
-      runtimeConfig: { timeoutSeconds: values.timeoutSeconds || 60 },
-      runtimeSecurityRequirement: 'controlled-sim-ok',
-    });
-    const version = imported.versions?.[0];
-    if (version?.versionId && version.credentialId) {
-      authorizationMaterials.current.set(version.versionId, {
-        assetVersionId: version.credentialId,
-        encryptedPayload: encryptedCredential,
-      });
-    }
-    form.setFieldValue('apiKey', '');
   };
 
   const authorizeModelDeployment = async (
@@ -370,8 +347,14 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       sealedAad,
     );
     const encryptedPayload = material.encryptedPayload;
+    // Local model ciphertext is already in managed MinIO.  Only its sealed DEK
+    // is authorized here; the control plane streams the stored chunks to
+    // CipherGPU over mTLS after approval.  Remote API credentials stay small
+    // and continue to use the single encrypted-input execution contract.
     const encryptedInputs =
-      encryptedPayload.format === 'ds-envelope/v2'
+      model.sourceType === 'LOCAL_WEIGHTS'
+        ? []
+        : encryptedPayload.format === 'ds-envelope/v2'
         ? encryptedPayload.chunks.map((chunk) => ({
             assetVersionId: material.assetVersionId,
             format: 'ds-envelope/v2' as const,
@@ -416,10 +399,9 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       grantId,
     );
     deploymentTasks.current.set(deploymentId, task.taskSpec.taskId);
-    // The DEK is no longer needed once CipherGPU has consumed the grant,
-    // regardless of whether a local runtime was configured.
-    forgetDek(material.encryptedPayload.envelopeId);
-    authorizationMaterials.current.delete(model.versionId || deployment.versionId);
+    // Keep the owner's DEK only in this browser session so an explicit stop
+    // followed by restart can issue a fresh one-time grant. CipherGPU never
+    // retains the previous sealed execution credential.
     if (deployment.status === 'ONLINE') {
       deploymentSessions.current.set(deploymentId, {
         sessionId: attestation.sessionId,
@@ -473,33 +455,6 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     }
   };
 
-  const recoverInferenceAuthorization = (
-    model: ConfidentialModel,
-    deploymentId: string,
-  ) => {
-    const materialLabel = model.sourceType === 'OPENAI_COMPATIBLE' ? '凭据' : '权重';
-    Modal.confirm({
-      title: '需要重新授权部署',
-      content: `当前浏览器没有该部署的有效 TEK 会话。系统将下线旧会话，并打开新${materialLabel}版本导入；完成审核和部署后即可继续推理。`,
-      okText: `下线并重新导入${materialLabel}`,
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          await ConfidentialModelApi.offline(deploymentId);
-          deploymentSessions.current.delete(deploymentId);
-          deploymentTasks.current.delete(deploymentId);
-          await refresh();
-          openImport(model);
-        } catch (failure) {
-          message.error(
-            failure instanceof Error ? failure.message : '重新授权准备失败',
-          );
-          throw failure;
-        }
-      },
-    });
-  };
-
   const openInference = async (model: ConfidentialModel) => {
     try {
       const modelDetail = await ConfidentialModelApi.detail(model.modelId);
@@ -507,18 +462,12 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
         (item) => item.status === 'ONLINE',
       );
       if (!deployment) throw new Error('当前模型没有在线部署');
-      const session = deploymentSessions.current.get(deployment.deploymentId);
-      if (!session || Date.parse(session.expiresAt) <= Date.now()) {
-        recoverInferenceAuthorization(model, deployment.deploymentId);
-        return;
-      }
       setInferencePrompt('');
       setInferenceResult('');
       setInferenceTarget({
         deploymentId: deployment.deploymentId,
         modelName: model.name,
         sourceType: model.sourceType,
-        session,
       });
     } catch (failure) {
       message.error(failure instanceof Error ? failure.message : '推理会话不可用');
@@ -529,20 +478,15 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     if (!inferenceTarget || !inferencePrompt.trim()) return;
     setInferring(true);
     setInferenceResult('');
-    let exchange:
-      | Awaited<ReturnType<typeof createEncryptedInferenceRequest>>
-      | undefined;
     try {
-      exchange = await createEncryptedInferenceRequest(
+      const response = await ConfidentialModelApi.runtimeChat(
         inferenceTarget.deploymentId,
-        inferenceTarget.session,
         {
           model: inferenceTarget.modelName,
           messages: [{ role: 'user', content: inferencePrompt }],
+          max_tokens: 256,
         },
       );
-      const encryptedResponse = await ConfidentialModelApi.infer(exchange.request);
-      const response = await exchange.decrypt(encryptedResponse);
       const choices = response.choices;
       const content = Array.isArray(choices)
         ? (choices[0] as { message?: { content?: unknown } } | undefined)?.message
@@ -554,17 +498,88 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     } catch (failure) {
       message.error(failure instanceof Error ? failure.message : '加密推理失败');
     } finally {
-      exchange?.destroy();
       setInferring(false);
     }
+  };
+
+  const createRuntimeApiKey = async (model: ConfidentialModel) => {
+    const modelDetail = await ConfidentialModelApi.detail(model.modelId);
+    const deployment = modelDetail.deployments?.find(
+      (item) => item.status === 'ONLINE',
+    );
+    if (!deployment) throw new Error('当前模型没有在线部署');
+    const key = await ConfidentialModelApi.createApiKey(deployment.deploymentId);
+    Modal.info({
+      title: 'API Key 已创建（仅显示一次）',
+      width: 680,
+      content: (
+        <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
+          <Descriptions.Item label="API 地址">
+            {`${window.location.origin}/model-api/v1/chat/completions`}
+          </Descriptions.Item>
+          <Descriptions.Item label="API Key">
+            <Typography.Text copyable code>
+              {key.apiKey}
+            </Typography.Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="model">{model.name}</Descriptions.Item>
+        </Descriptions>
+      ),
+    });
+  };
+
+  const manageRuntimeApiKeys = async (model: ConfidentialModel) => {
+    const modelDetail = await ConfidentialModelApi.detail(model.modelId);
+    const deployment = modelDetail.deployments?.find(
+      (item) => item.status === 'ONLINE',
+    );
+    if (!deployment) throw new Error('当前模型没有在线部署');
+    const keys = await ConfidentialModelApi.apiKeys(deployment.deploymentId);
+    Modal.info({
+      title: 'API Key 管理',
+      width: 720,
+      content: keys.length ? (
+        <Table
+          rowKey="keyId"
+          pagination={false}
+          size="small"
+          dataSource={keys}
+          columns={[
+            { title: 'Key 前缀', dataIndex: 'keyPrefix' },
+            { title: '状态', dataIndex: 'status' },
+            { title: '创建时间', dataIndex: 'createdAt' },
+            { title: '最后调用', dataIndex: 'lastUsedAt' },
+            {
+              title: '操作',
+              render: (_, key) =>
+                key.status === 'ACTIVE' && (
+                  <Button
+                    danger
+                    size="small"
+                    onClick={() =>
+                      void ConfidentialModelApi.revokeApiKey(key.keyId).then(() => {
+                        message.success('API Key 已吊销');
+                        Modal.destroyAll();
+                      })
+                    }
+                  >
+                    吊销
+                  </Button>
+                ),
+            },
+          ]}
+        />
+      ) : (
+        <Typography.Text type="secondary">暂无 API Key，请先创建。</Typography.Text>
+      ),
+    });
   };
 
   const submitImport = async () => {
     setSubmitting(true);
     try {
       const values = await form.validateFields();
-      if (sourceType === 'LOCAL_WEIGHTS') await importWeights(values);
-      else await importOpenAi(values);
+      await importWeights(values);
       message.success('加密模型版本已导入');
       setImportOpen(false);
       setVersionTarget(undefined);
@@ -582,7 +597,21 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     setModelActionId(model.modelId);
     try {
       if (action === 'DEPLOY') {
-        const material = authorizationMaterials.current.get(model.versionId);
+        let material = authorizationMaterials.current.get(model.versionId);
+        if (!material && model.sourceType === 'LOCAL_WEIGHTS') {
+          const persisted = await ConfidentialModelApi.detail(model.modelId);
+          const version = persisted.versions?.find(
+            (item) => item.versionId === model.versionId,
+          );
+          if (version?.manifest && version.assetVersionId) {
+            await restoreEncryptedFileDek(version.manifest);
+            material = {
+              assetVersionId: version.assetVersionId,
+              encryptedPayload: version.manifest,
+            };
+            authorizationMaterials.current.set(model.versionId, material);
+          }
+        }
         if (!material) {
           message.warning(
             model.sourceType === 'OPENAI_COMPATIBLE'
@@ -610,7 +639,21 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
 
   const continuePublishing = async (model: ConfidentialModel) => {
     if (!model.versionId || modelActionId === model.modelId) return;
-    const material = authorizationMaterials.current.get(model.versionId);
+    let material = authorizationMaterials.current.get(model.versionId);
+    if (!material && model.sourceType === 'LOCAL_WEIGHTS') {
+      const persisted = await ConfidentialModelApi.detail(model.modelId);
+      const version = persisted.versions?.find(
+        (item) => item.versionId === model.versionId,
+      );
+      if (version?.manifest && version.assetVersionId) {
+        await restoreEncryptedFileDek(version.manifest);
+        material = {
+          assetVersionId: version.assetVersionId,
+          encryptedPayload: version.manifest,
+        };
+        authorizationMaterials.current.set(model.versionId, material);
+      }
+    }
     if (!material) {
       message.warning('当前浏览器已丢失凭据 DEK，请取消并重新导入凭据');
       return;
@@ -664,6 +707,67 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     }
   };
 
+  const restartDeployment = async (model: ConfidentialModel, deploymentId: string) => {
+    if (!model.versionId || modelActionId === model.modelId) return;
+    let material = authorizationMaterials.current.get(model.versionId);
+    if (!material && model.sourceType === 'LOCAL_WEIGHTS') {
+      const persisted = await ConfidentialModelApi.detail(model.modelId);
+      const version = persisted.versions?.find(
+        (item) => item.versionId === model.versionId,
+      );
+      if (version?.manifest && version.assetVersionId) {
+        await restoreEncryptedFileDek(version.manifest);
+        material = {
+          assetVersionId: version.assetVersionId,
+          encryptedPayload: version.manifest,
+        };
+        authorizationMaterials.current.set(model.versionId, material);
+      }
+    }
+    if (!material) {
+      message.warning('当前浏览器没有该版本的解密授权材料，请导入新的加密版本后再部署');
+      return;
+    }
+    setModelActionId(model.modelId);
+    try {
+      await ConfidentialModelApi.restart(deploymentId);
+      await authorizeModelDeployment(model, deploymentId, material);
+      message.success('模型已重新授权并启动');
+      await refresh();
+      if (detail?.modelId === model.modelId) {
+        setDetail(await ConfidentialModelApi.detail(model.modelId));
+      }
+    } catch (failure) {
+      message.error(failure instanceof Error ? failure.message : '重新启动失败');
+    } finally {
+      setModelActionId(undefined);
+    }
+  };
+
+  const showRuntimeLogs = async (deploymentId: string) => {
+    try {
+      const result = await ConfidentialModelApi.runtimeLogs(deploymentId);
+      Modal.info({
+        title: `vLLM 运行日志 · ${result.status}`,
+        width: 900,
+        content: (
+          <pre
+            style={{
+              maxHeight: 520,
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              marginTop: 16,
+            }}
+          >
+            {result.logs || '当前尚无运行日志'}
+          </pre>
+        ),
+      });
+    } catch (failure) {
+      message.error(failure instanceof Error ? failure.message : '读取运行日志失败');
+    }
+  };
+
   return (
     <div>
       <div
@@ -674,7 +778,7 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
             机密模型中心
           </Typography.Title>
           <Typography.Text type="secondary">
-            统一管理加密权重和 OpenAI 兼容模型
+            加密模型包导入、审核发布、授权部署与受控推理
           </Typography.Text>
         </div>
         <Button
@@ -842,12 +946,40 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
                   </>
                 )}
                 {record.status === 'ONLINE' && (
-                  <Button
-                    size="small"
-                    icon={<SendOutlined />}
-                    onClick={() => void openInference(record)}
-                  >
-                    推理测试
+                  <>
+                    <Button
+                      size="small"
+                      icon={<SendOutlined />}
+                      onClick={() => void openInference(record)}
+                    >
+                      对话测试
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<ApiOutlined />}
+                      onClick={() =>
+                        void createRuntimeApiKey(record).catch((failure) =>
+                          message.error(failure.message),
+                        )
+                      }
+                    >
+                      创建 API Key
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        void manageRuntimeApiKeys(record).catch((failure) =>
+                          message.error(failure.message),
+                        )
+                      }
+                    >
+                      Key 管理
+                    </Button>
+                  </>
+                )}
+                {record.status === 'OFFLINE' && record.deployments?.length !== 0 && (
+                  <Button size="small" onClick={() => openImport(record)}>
+                    导入新版本
                   </Button>
                 )}
               </Space>
@@ -878,30 +1010,6 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
           style={{ marginBottom: 16 }}
         />
         <Form form={form} layout="vertical">
-          <Form.Item label="模型来源">
-            <Segmented
-              block
-              value={sourceType}
-              disabled={Boolean(versionTarget)}
-              options={[
-                {
-                  label: '上传权重',
-                  value: 'LOCAL_WEIGHTS',
-                  icon: <FileProtectOutlined />,
-                },
-                {
-                  label: 'OpenAI 兼容 API',
-                  value: 'OPENAI_COMPATIBLE',
-                  icon: <ApiOutlined />,
-                },
-              ]}
-              onChange={(value) => {
-                const source = value as ConfidentialModelSource;
-                setSourceType(source);
-                form.setFieldValue('sourceType', source);
-              }}
-            />
-          </Form.Item>
           <Form.Item name="name" label="模型名称" rules={[{ required: true }]}>
             <Input maxLength={128} />
           </Form.Item>
@@ -911,76 +1019,54 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
           <Form.Item name="domainId" label="可信域" rules={[{ required: true }]}>
             <Select options={domainOptions} />
           </Form.Item>
-          {sourceType === 'LOCAL_WEIGHTS' ? (
-            <>
-              <Form.Item label="权重文件" required>
-                <Upload.Dragger
-                  beforeUpload={() => false}
-                  maxCount={1}
-                  fileList={fileList}
-                  onChange={({ fileList: values }) => setFileList(values.slice(-1))}
-                >
-                  <FileProtectOutlined style={{ fontSize: 28 }} />
-                  <div style={{ marginTop: 8 }}>选择 safetensors 或模型目录压缩包</div>
-                </Upload.Dragger>
-              </Form.Item>
-              <Form.Item
-                name="algorithm"
-                label="内容加密算法"
-                rules={[{ required: true }]}
-              >
-                <Select
-                  options={CONTENT_ENCRYPTION_CAPABILITIES.map((item) => ({
-                    value: item.algorithm,
-                    label: `${item.label}${item.recommended ? '（默认）' : ''}`,
-                    title: item.description,
-                  }))}
-                />
-              </Form.Item>
-              <Form.Item
-                name="servedModelName"
-                label="vLLM 服务模型名"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="deepseek-llm-7b-chat" maxLength={256} />
-              </Form.Item>
-              {submitting && (
-                <Progress
-                  percent={progress}
-                  status={progress === 100 ? 'success' : 'active'}
-                />
-              )}
-            </>
-          ) : (
-            <>
+          <>
+            <Form.Item label="加密模型包" required>
               <Alert
                 showIcon
                 type="info"
-                message="上游模型供应商能够看到解密后的请求和响应"
-                style={{ marginBottom: 16 }}
+                message="大模型请上传完整模型包，不要只上传单个 safetensors"
+                description="请使用 ZIP、TAR 或 TAR.GZ 打包：必须包含 config.json、safetensors 权重、tokenizer.json 或 tokenizer.model，以及 tokenizer_config.json；建议包含 generation_config.json、special_tokens_map.json、LICENSE/NOTICE 和 README。禁止 Python/可执行脚本、符号链接及依赖 trust_remote_code 的包。"
+                style={{ marginBottom: 12 }}
               />
-              <Form.Item
-                name="baseUrl"
-                label="HTTPS Base URL"
-                rules={[{ required: true }, { type: 'url' }]}
+              <Upload.Dragger
+                beforeUpload={() => false}
+                maxCount={1}
+                fileList={fileList}
+                onChange={({ fileList: values }) => setFileList(values.slice(-1))}
               >
-                <Input placeholder="https://api.example.com/v1" />
-              </Form.Item>
-              <Form.Item
-                name="upstreamModelId"
-                label="上游 Model ID"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item name="apiKey" label="API Key" rules={[{ required: true }]}>
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item name="timeoutSeconds" label="超时时间">
-                <InputNumber min={5} max={300} addonAfter="秒" />
-              </Form.Item>
-            </>
-          )}
+                <FileProtectOutlined style={{ fontSize: 28 }} />
+                <div style={{ marginTop: 8 }}>
+                  选择模型包压缩文件（ZIP、TAR、TAR.GZ）
+                </div>
+              </Upload.Dragger>
+            </Form.Item>
+            <Form.Item
+              name="algorithm"
+              label="内容加密算法"
+              rules={[{ required: true }]}
+            >
+              <Select
+                options={CONTENT_ENCRYPTION_CAPABILITIES.map((item) => ({
+                  value: item.algorithm,
+                  label: `${item.label}${item.recommended ? '（默认）' : ''}`,
+                  title: item.description,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="servedModelName"
+              label="vLLM 服务模型名"
+              rules={[{ required: true }]}
+            >
+              <Input placeholder="deepseek-llm-7b-chat" maxLength={256} />
+            </Form.Item>
+            {submitting && (
+              <Progress
+                percent={progress}
+                status={progress === 100 ? 'success' : 'active'}
+              />
+            )}
+          </>
         </Form>
       </Modal>
 
@@ -1100,8 +1186,29 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
                 {
                   title: '操作',
                   render: (_, record) =>
-                    record.status === 'OFFLINE' ? null : (
+                    record.status === 'DESTROYED' ? null : (
                       <Space>
+                        <Button
+                          size="small"
+                          onClick={() => void showRuntimeLogs(record.deploymentId)}
+                        >
+                          运行日志
+                        </Button>
+                        {['OFFLINE', 'FAILED'].includes(record.status) && (
+                          <Button
+                            size="small"
+                            icon={<ReloadOutlined />}
+                            loading={modelActionId === detail.modelId}
+                            onClick={() =>
+                              void restartDeployment(
+                                { ...detail, versionId: record.versionId },
+                                record.deploymentId,
+                              )
+                            }
+                          >
+                            重新启动
+                          </Button>
+                        )}
                         {deploymentTasks.current.has(record.deploymentId) && (
                           <Button
                             size="small"
@@ -1114,18 +1221,33 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
                             获取产物
                           </Button>
                         )}
+                        {!['OFFLINE', 'FAILED'].includes(record.status) && (
+                          <Button
+                            size="small"
+                            icon={<PauseCircleOutlined />}
+                            onClick={async () => {
+                              await ConfidentialModelApi.offline(record.deploymentId);
+                              setDetail(
+                                await ConfidentialModelApi.detail(detail.modelId),
+                              );
+                              await refresh();
+                            }}
+                          >
+                            下线
+                          </Button>
+                        )}
                         <Button
                           size="small"
-                          icon={<PauseCircleOutlined />}
+                          danger
                           onClick={async () => {
-                            await ConfidentialModelApi.offline(record.deploymentId);
+                            await ConfidentialModelApi.destroy(record.deploymentId);
                             setDetail(
                               await ConfidentialModelApi.detail(detail.modelId),
                             );
                             await refresh();
                           }}
                         >
-                          下线
+                          销毁
                         </Button>
                       </Space>
                     ),

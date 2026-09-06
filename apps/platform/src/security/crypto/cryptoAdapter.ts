@@ -219,6 +219,35 @@ export class BrowserCryptoAdapter implements CryptoAdapter {
 
 export const cryptoAdapter: CryptoAdapter = new BrowserCryptoAdapter();
 
+/** Restore an owner-held file DEK from its server-retained encrypted manifest. */
+export const restoreEncryptedFileDek = async (payload: EncryptedFilePayload) => {
+  const identity = await getSessionIdentity();
+  const manifestBinding = {
+    format: payload.format,
+    envelopeId: payload.envelopeId,
+    contentEncryptionAlgorithm: payload.algorithm,
+    implementationVersion: payload.contentEncryption.implementationVersion,
+    domainId: payload.domainId,
+    publicKeyId: payload.publicKeyId,
+    publicKeyVersion: payload.publicKeyVersion,
+    originalSize: payload.originalSize,
+    chunks: payload.chunks.map(({ index, plaintextLength, sha256: chunkHash }) => ({
+      index,
+      plaintextLength,
+      sha256: chunkHash,
+    })),
+  };
+  const dek = await identity.openSealedDek(
+    payload.keyEnvelope,
+    canonicalBytes(manifestBinding),
+  );
+  try {
+    rememberDek(payload.envelopeId, dek);
+  } finally {
+    dek.fill(0);
+  }
+};
+
 export const decryptEncryptedFile = async (payload: EncryptedFilePayload) => {
   const identity = await getSessionIdentity();
   const manifestBinding = {

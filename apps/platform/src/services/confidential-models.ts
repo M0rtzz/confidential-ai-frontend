@@ -29,6 +29,7 @@ export type ConfidentialModelVersion = {
   contentEncryptionAlgorithm?: ContentEncryptionAlgorithm;
   assetVersionId?: string;
   manifestHash?: string;
+  manifest?: EncryptedFilePayload;
   baseUrl?: string;
   upstreamModelId?: string;
   credentialId?: string;
@@ -47,6 +48,15 @@ export type ModelDeployment = {
   endpointPath: string;
   authorizationSessionId?: string;
   errorCode?: string;
+};
+export type RuntimeApiKey = {
+  keyId: string;
+  prefix?: string;
+  keyPrefix?: string;
+  apiKey?: string;
+  status?: string;
+  createdAt?: string;
+  lastUsedAt?: string;
 };
 
 export type ConfidentialModel = {
@@ -106,6 +116,10 @@ const post = <T>(path: string, data: Record<string, unknown> = {}) =>
 export const ConfidentialModelApi = {
   capabilities: () => get<CryptoCapabilities>('/capabilities'),
   list: () => get<ConfidentialModel[]>(''),
+  runtimeInstances: () =>
+    get<
+      Array<ModelDeployment & { modelId: string; modelName: string; version?: number }>
+    >('/runtime-instances'),
   detail: (modelId: string) =>
     get<ConfidentialModel>(`/${encodeURIComponent(modelId)}`),
   createWeightUpload: (data: {
@@ -174,6 +188,25 @@ export const ConfidentialModelApi = {
     post<ModelDeployment>(`/${encodeURIComponent(modelId)}/deployments`, { versionId }),
   offline: (deploymentId: string) =>
     post<ModelDeployment>(`/deployments/${encodeURIComponent(deploymentId)}/offline`),
+  restart: (deploymentId: string) =>
+    post<ModelDeployment>(`/deployments/${encodeURIComponent(deploymentId)}/restart`),
+  runtimeLogs: (deploymentId: string) =>
+    get<{ deploymentId: string; status: string; logs: string }>(
+      `/deployments/${encodeURIComponent(deploymentId)}/logs`,
+    ),
+  destroy: (deploymentId: string) =>
+    post<ModelDeployment>(`/deployments/${encodeURIComponent(deploymentId)}/destroy`),
+  createApiKey: (deploymentId: string) =>
+    post<RuntimeApiKey>(`/deployments/${encodeURIComponent(deploymentId)}/api-keys`),
+  apiKeys: (deploymentId: string) =>
+    get<RuntimeApiKey[]>(`/deployments/${encodeURIComponent(deploymentId)}/api-keys`),
+  revokeApiKey: (keyId: string) =>
+    post<void>(`/api-keys/${encodeURIComponent(keyId)}/revoke`),
+  runtimeChat: (deploymentId: string, payload: Record<string, unknown>) =>
+    post<Record<string, unknown>>(
+      `/deployments/${encodeURIComponent(deploymentId)}/chat/completions`,
+      payload,
+    ),
   authorize: (deploymentId: string, taskId: string, grantId: string) =>
     post<ModelDeployment>(
       `/deployments/${encodeURIComponent(deploymentId)}/authorize`,

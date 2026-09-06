@@ -15,6 +15,10 @@ export const routes = [
         component: 'confidential-training',
       },
       {
+        path: '/llm-confidential-management',
+        component: 'llm-confidential-management',
+      },
+      {
         path: '/dag',
         component: 'dag',
         wrappers: ['@/wrappers/p2p-center-auth', '@/wrappers/component-wrapper'],

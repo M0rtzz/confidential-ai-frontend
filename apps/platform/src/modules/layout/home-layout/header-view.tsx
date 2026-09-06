@@ -1,6 +1,7 @@
 import {
   BellOutlined,
   CaretDownOutlined,
+  CloudServerOutlined,
   LogoutOutlined,
   DatabaseOutlined,
   ExperimentOutlined,
@@ -265,6 +266,13 @@ export const HeaderComponent = () => {
           onClick={() => history.push('/confidential-training')}
         >
           机密训练
+        </Button>
+        <Button
+          type="text"
+          icon={<CloudServerOutlined />}
+          onClick={() => history.push('/llm-confidential-management')}
+        >
+          大模型密态管理
         </Button>
         {/* {layoutService.showBackButton && (
           <>
