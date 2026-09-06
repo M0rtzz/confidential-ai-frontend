@@ -2,7 +2,7 @@ import request from 'umi-request';
 
 import type {
   ContentEncryptionAlgorithm,
-  EncryptedFilePayload,
+  EncryptedFileManifestPayload,
   EncryptedPayload,
 } from '@/security/crypto';
 import type {
@@ -29,7 +29,7 @@ export type ConfidentialModelVersion = {
   contentEncryptionAlgorithm?: ContentEncryptionAlgorithm;
   assetVersionId?: string;
   manifestHash?: string;
-  manifest?: EncryptedFilePayload;
+  manifest?: EncryptedFileManifestPayload;
   baseUrl?: string;
   upstreamModelId?: string;
   credentialId?: string;
@@ -157,9 +157,7 @@ export const ConfidentialModelApi = {
     modelId?: string;
     name: string;
     description: string;
-    manifest: Omit<EncryptedFilePayload, 'chunks'> & {
-      chunks: Array<Omit<EncryptedFilePayload['chunks'][number], 'ciphertext'>>;
-    };
+    manifest: EncryptedFileManifestPayload;
     manifestHash: string;
     ownerSigningPublicKey: string;
     ownerSignature: string;

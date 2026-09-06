@@ -39,6 +39,8 @@ import {
   cryptoAdapter,
   DEFAULT_CONTENT_ENCRYPTION_ALGORITHM,
   downloadDecryptedOutput,
+  FILE_CHUNK_SIZE,
+  type ConfidentialInferenceSession,
   getSessionIdentity,
   randomId,
   restoreEncryptedFileDek,
@@ -46,6 +48,7 @@ import {
   sha256,
   type ContentEncryptionAlgorithm,
   type ConfidentialTaskOutput,
+  type EncryptedFileManifestPayload,
   type EncryptedFilePayload,
   type EncryptedPayload,
   type PublicKeyInfo,
@@ -74,7 +77,10 @@ type ImportForm = {
 
 type AuthorizationMaterial = {
   assetVersionId: string;
-  encryptedPayload: EncryptedPayload | EncryptedFilePayload;
+  encryptedPayload:
+    | EncryptedPayload
+    | EncryptedFilePayload
+    | EncryptedFileManifestPayload;
 };
 
 type InferenceTarget = {
@@ -205,30 +211,29 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
     }
     const identity = await registerIdentity();
     const publicKey = await ownerEncryptionKey(identity, values.domainId);
-    const encrypted = await cryptoAdapter.encryptFile(
-      file,
-      publicKey,
-      (value) => setProgress(Math.round(value * 0.55)),
-      { algorithm: values.algorithm },
-    );
     const session = await ConfidentialModelApi.createWeightUpload({
       modelName: values.name,
       originalFileName: file.name,
       originalSize: file.size,
       domainId: values.domainId,
       contentEncryptionAlgorithm: values.algorithm,
-      expectedChunks: encrypted.chunks.length,
+      expectedChunks: Math.ceil(file.size / FILE_CHUNK_SIZE),
     });
-    for (let index = 0; index < encrypted.chunks.length; index += 1) {
-      const chunk = encrypted.chunks[index];
-      await ConfidentialModelApi.uploadWeightChunk(
-        session.uploadSessionId,
-        index,
-        base64UrlToBytes(chunk.ciphertext),
-        chunk.sha256,
-      );
-      setProgress(55 + Math.round(((index + 1) / encrypted.chunks.length) * 35));
-    }
+    setProgress(2);
+    const encrypted = await cryptoAdapter.encryptFileStreaming(
+      file,
+      publicKey,
+      async (chunk) => {
+        await ConfidentialModelApi.uploadWeightChunk(
+          session.uploadSessionId,
+          chunk.index,
+          chunk.ciphertext,
+          chunk.sha256,
+        );
+      },
+      (value) => setProgress(Math.max(2, Math.min(96, value))),
+      { algorithm: values.algorithm },
+    );
     const manifest = {
       ...encrypted,
       chunks: encrypted.chunks.map(
@@ -355,18 +360,23 @@ export const ConfidentialModelPanel = ({ domains }: { domains: TrustedDomain[] }
       model.sourceType === 'LOCAL_WEIGHTS'
         ? []
         : encryptedPayload.format === 'ds-envelope/v2'
-        ? encryptedPayload.chunks.map((chunk) => ({
-            assetVersionId: material.assetVersionId,
-            format: 'ds-envelope/v2' as const,
-            envelopeId: encryptedPayload.envelopeId,
-            implementationVersion:
-              encryptedPayload.contentEncryption.implementationVersion,
-            algorithm: encryptedPayload.algorithm,
-            nonce: chunk.nonce,
-            aad: chunk.aad,
-            ciphertext: chunk.ciphertext,
-            ciphertextSha256: chunk.sha256,
-          }))
+        ? encryptedPayload.chunks.map((chunk) => {
+            if (!('ciphertext' in chunk)) {
+              throw new Error('模型密文已托管到节点，不能作为远程 API 凭据提交');
+            }
+            return {
+              assetVersionId: material.assetVersionId,
+              format: 'ds-envelope/v2' as const,
+              envelopeId: encryptedPayload.envelopeId,
+              implementationVersion:
+                encryptedPayload.contentEncryption.implementationVersion,
+              algorithm: encryptedPayload.algorithm,
+              nonce: chunk.nonce,
+              aad: chunk.aad,
+              ciphertext: chunk.ciphertext,
+              ciphertextSha256: chunk.sha256,
+            };
+          })
         : [
             {
               assetVersionId: material.assetVersionId,

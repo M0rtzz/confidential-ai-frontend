@@ -82,6 +82,13 @@ export type EncryptedFileChunk = {
   aad: Record<string, string | number>;
 };
 
+export type EncryptedFileManifestChunk = Omit<EncryptedFileChunk, 'ciphertext'>;
+
+export type EncryptedFileUploadChunk = EncryptedFileManifestChunk & {
+  /** Transient binary ciphertext, valid only while the upload callback is running. */
+  ciphertext: Uint8Array;
+};
+
 export type EncryptedFilePayload = Omit<
   EncryptedPayload,
   'ciphertext' | 'nonce' | 'aad' | 'format' | 'algorithm'
@@ -102,6 +109,10 @@ export type EncryptedFilePayload = Omit<
   chunks: EncryptedFileChunk[];
 };
 
+export type EncryptedFileManifestPayload = Omit<EncryptedFilePayload, 'chunks'> & {
+  chunks: EncryptedFileManifestChunk[];
+};
+
 export interface CryptoAdapter {
   encryptText(plaintext: string, publicKey: PublicKeyInfo): Promise<EncryptedPayload>;
 
@@ -111,6 +122,18 @@ export interface CryptoAdapter {
     onProgress?: (progress: number) => void,
     options?: { algorithm?: ContentEncryptionAlgorithm },
   ): Promise<EncryptedFilePayload>;
+
+  /**
+   * Encrypts one chunk at a time and waits for the caller to persist it before
+   * continuing.  The returned manifest intentionally contains no ciphertext.
+   */
+  encryptFileStreaming(
+    file: File,
+    publicKey: PublicKeyInfo,
+    onChunk: (chunk: EncryptedFileUploadChunk) => Promise<void>,
+    onProgress?: (progress: number) => void,
+    options?: { algorithm?: ContentEncryptionAlgorithm },
+  ): Promise<EncryptedFileManifestPayload>;
 
   hashCipher(cipher: ArrayBuffer | Blob | string): Promise<string>;
 }
