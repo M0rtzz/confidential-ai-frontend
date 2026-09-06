@@ -1,4 +1,15 @@
-import { Alert, Button, Descriptions, Drawer, Empty, message, Table, Tag, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Descriptions,
+  Drawer,
+  Empty,
+  message,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 import { formatTime } from '@/modules/data-sandbox-mvp/common';
@@ -17,6 +28,7 @@ import {
   short,
   voteLabel,
 } from './common';
+import { DetailPanel } from './detail-panel';
 import styles from './index.less';
 import type { TeeEnvironment } from './types';
 
@@ -41,9 +53,11 @@ const exportStateColor: Record<string, string> = {
 export const KeyLedgerDrawer = ({
   open,
   onClose,
+  inline,
 }: {
   open: boolean;
   onClose: () => void;
+  inline?: boolean;
 }) => {
   const [items, setItems] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,10 +78,17 @@ export const KeyLedgerDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="密钥台账" width={760} open={open} onClose={onClose}>
+    <DetailPanel
+      inline={inline}
+      title="密钥台账"
+      width={760}
+      open={open}
+      onClose={onClose}
+    >
       <Table
         rowKey={(row) => `${row.keyId}-${row.keyVersion}`}
         size="small"
+        scroll={{ x: 'max-content' }}
         loading={loading}
         dataSource={items}
         pagination={{ pageSize: 10 }}
@@ -77,7 +98,11 @@ export const KeyLedgerDrawer = ({
             key: 'key',
             render: (_, row) => `${short(row.keyId, 18)} · v${row.keyVersion}`,
           },
-          { title: '资产', dataIndex: 'assetId', render: (v) => short(v, 18) },
+          {
+            title: '资产',
+            dataIndex: 'assetId',
+            render: (v) => <Text copyable={{ text: v }}>{short(v, 18)}</Text>,
+          },
           { title: '机构', dataIndex: 'ownerId' },
           {
             title: '状态',
@@ -92,9 +117,9 @@ export const KeyLedgerDrawer = ({
         ]}
       />
       <Paragraph type="secondary" style={{ marginTop: 12 }}>
-        密钥仅中心端一处保管，客户端无本地副本。
+        密钥由中心端统一托管；申领次数对应客户端加密，放行次数对应运行时取钥。
       </Paragraph>
-    </Drawer>
+    </DetailPanel>
   );
 };
 
@@ -102,9 +127,11 @@ export const KeyLedgerDrawer = ({
 export const ObjectsDrawer = ({
   open,
   onClose,
+  inline,
 }: {
   open: boolean;
   onClose: () => void;
+  inline?: boolean;
 }) => {
   const [items, setItems] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -141,10 +168,17 @@ export const ObjectsDrawer = ({
   };
 
   return (
-    <Drawer title="密文资产" width={860} open={open} onClose={onClose}>
+    <DetailPanel
+      inline={inline}
+      title="密文资产"
+      width={860}
+      open={open}
+      onClose={onClose}
+    >
       <Table
         rowKey="objectId"
         size="small"
+        scroll={{ x: 'max-content' }}
         loading={loading}
         dataSource={items}
         pagination={{ pageSize: 10 }}
@@ -196,7 +230,7 @@ export const ObjectsDrawer = ({
           preview && (
             <>
               <Paragraph type="secondary">
-                这是中心端实际持有的字节：仅展示密文前 {preview.previewBytes} 字节（共{' '}
+                仅展示所选对象的密文前 {preview.previewBytes} 字节（共{' '}
                 {formatBytes(preview.sizeBytes)}），不提供整体下载。
               </Paragraph>
               <pre className={styles.hexBlock}>
@@ -206,7 +240,7 @@ export const ObjectsDrawer = ({
           )
         )}
       </Drawer>
-    </Drawer>
+    </DetailPanel>
   );
 };
 
@@ -214,9 +248,11 @@ export const ObjectsDrawer = ({
 export const PolicyDrawer = ({
   open,
   onClose,
+  inline,
 }: {
   open: boolean;
   onClose: () => void;
+  inline?: boolean;
 }) => {
   const [items, setItems] = useState<DataSandboxRecord[]>([]);
   const [recent, setRecent] = useState<DataSandboxRecord[]>([]);
@@ -240,56 +276,98 @@ export const PolicyDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="规则校验" width={900} open={open} onClose={onClose}>
-      <Typography.Title level={5}>授权规则</Typography.Title>
-      <Table
-        rowKey={(row) => `${row.policyId}-${row.policyVersion}`}
-        size="small"
-        loading={loading}
-        dataSource={items}
-        pagination={{ pageSize: 5 }}
-        columns={[
-          { title: '可用列', dataIndex: 'columns', render: (v: string[]) => (v || []).join('、') || '全部列' },
-          { title: '可跑算子', dataIndex: 'operators', render: (v: string[]) => (v || []).join('、') || '-' },
-          { title: '报告类型', dataIndex: 'reportKinds', render: (v: string[]) => (v || []).join('、') || '-' },
-          { title: '有效期', dataIndex: 'expiresAt', render: formatTime },
-          {
-            title: '状态',
-            dataIndex: 'state',
-            render: (v: string) => (
-              <Tag color={v === 'ACTIVE' ? 'success' : 'default'}>{policyStateLabel(v)}</Tag>
-            ),
-          },
-        ]}
-      />
-      <Typography.Title level={5} style={{ marginTop: 16 }}>
-        最近放行与拒绝
-      </Typography.Title>
-      <Table
-        rowKey={(row) => `${row.at}-${row.actor}-${row.action}`}
-        size="small"
-        loading={loading}
-        dataSource={recent}
-        pagination={{ pageSize: 5 }}
-        columns={[
-          { title: '时间', dataIndex: 'at', render: formatTime },
-          { title: '动作', dataIndex: 'action' },
-          {
-            title: '结果',
-            dataIndex: 'allowed',
-            render: (v: boolean) => (
-              <Tag color={v ? 'success' : 'error'}>{v ? '放行' : '拒绝'}</Tag>
-            ),
-          },
-          {
-            title: '明细',
-            dataIndex: 'detail',
-            ellipsis: true,
-            render: (v: string) => v || '-',
-          },
-        ]}
-      />
-    </Drawer>
+    <DetailPanel
+      inline={inline}
+      title="规则校验"
+      width={900}
+      open={open}
+      onClose={onClose}
+    >
+      <Tabs defaultActiveKey="policies">
+        <Tabs.TabPane tab="授权规则" key="policies">
+          <Table
+            rowKey={(row) => `${row.policyId}-${row.policyVersion}`}
+            size="small"
+            scroll={{ x: 'max-content' }}
+            loading={loading}
+            dataSource={items}
+            pagination={{ pageSize: 5 }}
+            columns={[
+              {
+                title: '资产',
+                dataIndex: 'assetId',
+                render: (v) => <Text copyable={{ text: v }}>{short(v, 18)}</Text>,
+              },
+              {
+                title: '沙箱',
+                dataIndex: 'sandboxId',
+                render: (v) => <Text copyable={{ text: v }}>{short(v, 18)}</Text>,
+              },
+              { title: '规则版本', dataIndex: 'policyVersion' },
+              {
+                title: '可用列',
+                dataIndex: 'columns',
+                render: (v: string[]) =>
+                  v?.length ? `${v.length} 列：${v.join('、')}` : '未提供',
+              },
+              {
+                title: '可跑算子',
+                dataIndex: 'operators',
+                render: (v: string[]) => (v || []).join('、') || '-',
+              },
+              {
+                title: '报告类型',
+                dataIndex: 'reportKinds',
+                render: (v: string[]) => (v || []).join('、') || '-',
+              },
+              { title: '有效期', dataIndex: 'expiresAt', render: formatTime },
+              {
+                title: '状态',
+                dataIndex: 'state',
+                render: (v: string) => (
+                  <Tag color={v === 'ACTIVE' ? 'success' : 'default'}>
+                    {policyStateLabel(v)}
+                  </Tag>
+                ),
+              },
+            ]}
+          />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="审计记录" key="audit">
+          <Table
+            rowKey={(row) => `${row.at}-${row.actor}-${row.action}`}
+            size="small"
+            scroll={{ x: 'max-content' }}
+            loading={loading}
+            dataSource={recent}
+            pagination={{ pageSize: 5 }}
+            columns={[
+              { title: '时间', dataIndex: 'at', render: formatTime },
+              { title: '动作', dataIndex: 'action' },
+              {
+                title: '结果',
+                dataIndex: 'allowed',
+                render: (v: boolean) => (
+                  <Tag color={v ? 'success' : 'error'}>
+                    {v ? '成功' : '拒绝 / 失败'}
+                  </Tag>
+                ),
+              },
+              {
+                title: '明细',
+                dataIndex: 'detail',
+                width: 420,
+                render: (v: string) => (
+                  <span style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
+                    {v || '-'}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        </Tabs.TabPane>
+      </Tabs>
+    </DetailPanel>
   );
 };
 
@@ -297,15 +375,23 @@ export const PolicyDrawer = ({
 export const AttestationDrawer = ({
   open,
   onClose,
+  inline,
   environment,
   runtimeImageId,
 }: {
   open: boolean;
   onClose: () => void;
+  inline?: boolean;
   environment?: TeeEnvironment;
   runtimeImageId?: string;
 }) => (
-  <Drawer title="环境认证" width={640} open={open} onClose={onClose}>
+  <DetailPanel
+    inline={inline}
+    title="环境认证"
+    width={640}
+    open={open}
+    onClose={onClose}
+  >
     {environment ? (
       <>
         <Descriptions bordered size="small" column={1}>
@@ -324,12 +410,17 @@ export const AttestationDrawer = ({
               {environment.deviceChecks.csv ? '检测到' : '未检测到'}
             </Tag>
           </Descriptions.Item>
+          <Descriptions.Item label="硬件证明验证">
+            {environment.attestationVerified ? '已验证' : '未验证'}
+          </Descriptions.Item>
           <Descriptions.Item label="快照时间">
             {formatTime(environment.checkedAt)}
           </Descriptions.Item>
           <Descriptions.Item label="运行镜像摘要">
             {runtimeImageId ? (
-              <Text copyable={{ text: runtimeImageId }}>{short(runtimeImageId, 28)}</Text>
+              <Text copyable={{ text: runtimeImageId }}>
+                {short(runtimeImageId, 28)}
+              </Text>
             ) : (
               <Text type="secondary">本端不运行 TEE 容器</Text>
             )}
@@ -352,23 +443,29 @@ export const AttestationDrawer = ({
             showIcon
             type="info"
             style={{ marginTop: 8 }}
-            message="本机没有可信执行硬件，当前为仿真模式：加密、密钥托管、规则校验、投票导出均真实执行，缺少硬件背书。"
+            message={
+              environment.runtimeMode === 'SIMULATION'
+                ? '当前为仿真模式，未取得硬件可信证明。'
+                : '当前页面不提供运行模式切换。'
+            }
           />
         </div>
       </>
     ) : (
       <Empty />
     )}
-  </Drawer>
+  </DetailPanel>
 );
 
 /** ⑥ 出域管控：导出工单时间线，报告类结果明文出域、不走投票 */
 export const ExportsDrawer = ({
   open,
   onClose,
+  inline,
 }: {
   open: boolean;
   onClose: () => void;
+  inline?: boolean;
 }) => {
   const [items, setItems] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -389,10 +486,17 @@ export const ExportsDrawer = ({
   }, [open, load]);
 
   return (
-    <Drawer title="出域管控" width={900} open={open} onClose={onClose}>
+    <DetailPanel
+      inline={inline}
+      title="出域管控"
+      width={900}
+      open={open}
+      onClose={onClose}
+    >
       <Table
         rowKey="exportId"
         size="small"
+        scroll={{ x: 'max-content' }}
         loading={loading}
         dataSource={items}
         pagination={{ pageSize: 10 }}
@@ -438,6 +542,6 @@ export const ExportsDrawer = ({
           { title: '创建时间', dataIndex: 'gmtCreate', render: formatTime },
         ]}
       />
-    </Drawer>
+    </DetailPanel>
   );
 };

@@ -1,98 +1,72 @@
-// 可信执行链路：一条常驻状态条 + 一条可点开的流水线。
-// 配色跟随 antd 主色，不引入额外主题；数字统一等宽对齐，便于横向比对。
-
+// 沿用 MvpPage 与 Ant Design 的颜色、间距和表格，阶段明细在页内展开。
 .statusBar {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  padding: 14px 18px;
-  border: 1px solid #ebedf0;
-  border-radius: 8px;
-  border-left: 3px solid #1677ff;
-  margin-bottom: 20px;
-  background: #fff;
-  row-gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  gap: 12px 24px;
 }
 
 .statusItem {
   display: flex;
-  flex-direction: column;
-  padding: 0 20px;
-  border-left: 1px solid #f0f0f0;
-  gap: 4px;
-
-  &:first-child {
-    padding-left: 0;
-    border-left: none;
-  }
+  align-items: center;
+  font-size: 13px;
+  gap: 8px;
 }
 
 .statusLabel {
-  color: rgb(0 0 0 / 45%);
+  color: rgb(0 0 0 / 55%);
+}
+
+.chainHint {
+  margin-bottom: 8px;
+  color: rgb(0 0 0 / 55%);
   font-size: 12px;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
 }
 
-.statusValue {
-  display: flex;
-  min-height: 22px;
-  align-items: center;
-  color: rgb(0 0 0 / 88%);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  gap: 6px;
-  line-height: 1.2;
-}
-
-// 六段链路始终排成一行，宽度不足时整条横向滚动，避免最后一段单独换行
 .chain {
   display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
   padding-bottom: 4px;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
   gap: 10px;
   overflow-x: auto;
 }
 
 .segmentCard {
-  position: relative;
-  display: flex;
-  min-width: 158px;
+  min-width: 150px;
   flex: 1 1 0;
-  flex-direction: column;
-  padding: 14px 16px 12px;
-  border: 1px solid #ebedf0;
-  border-radius: 8px;
+  padding: 14px 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  font: inherit;
+  text-align: left;
 
   &:hover {
-    border-color: #1677ff;
-    box-shadow: 0 4px 14px rgb(22 119 255 / 12%);
-    transform: translateY(-1px);
+    border-color: #91caff;
   }
 
   &:focus-visible {
     outline: 2px solid #1677ff;
     outline-offset: 2px;
   }
+}
 
-  // 段与段之间的流向指示；换行后由媒体查询隐藏
-  &:not(:last-child)::after {
-    position: absolute;
-    z-index: 1;
-    top: 50%;
-    right: -11px;
-    color: #d0d5dd;
-    content: '›';
-    font-size: 14px;
-    line-height: 1;
-    pointer-events: none;
-    transform: translateY(-50%);
+.segmentActive {
+  border-color: #91caff;
+  background: #f0f7ff;
+
+  .segmentIndex {
+    background: #1677ff;
+    color: #fff;
+  }
+
+  .segmentLabel {
+    color: #1677ff;
   }
 }
 
@@ -111,82 +85,51 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #f0f6ff;
-  color: #1677ff;
+  background: #f5f5f5;
+  color: #777;
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
 }
 
 .segmentLabel {
-  overflow: hidden;
-  flex: 1;
-  color: rgb(0 0 0 / 88%);
   font-size: 14px;
-  font-weight: 600;
-  text-overflow: ellipsis;
+  font-weight: 500;
   white-space: nowrap;
-}
-
-.segmentDot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
 }
 
 .segmentMetrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 18px;
-}
-
-.segmentMetric {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.metricValue {
-  color: rgb(0 0 0 / 88%);
-  font-size: 18px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.metricLabel {
-  color: rgb(0 0 0 / 45%);
+  color: rgb(0 0 0 / 55%);
   font-size: 12px;
-  line-height: 1.2;
+  gap: 4px 10px;
 }
 
-.chainHint {
-  margin-bottom: 4px;
-  color: rgb(0 0 0 / 45%);
-  font-size: 12px;
-}
+.detailPanel {
+  min-width: 0;
 
-@media (max-width: 900px) {
-  .statusItem {
-    padding-left: 0;
-    border-left: none;
+  > h5 {
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 16px;
   }
 }
 
 .hexBlock {
+  overflow: auto;
   padding: 12px 14px;
-  border: 1px solid #f0f0f0;
   border-radius: 6px;
   background: #fafafa;
-  color: rgb(0 0 0 / 75%);
-  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: SFMono-Regular, Consolas, monospace;
   font-size: 12px;
   line-height: 20px;
-  overflow-x: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
-// 打印可信执行回执卡时让其单独成页，屏蔽页面其余部分
+.receiptPrintArea {
+  overflow-wrap: anywhere;
+}
+
 @media print {
   body * {
     visibility: hidden;
@@ -203,90 +146,4 @@
     left: 0;
     width: 100%;
   }
-}
-
-// 链路下方的常驻信息面板：把环境与底座的判定摊开，避免页面下半部大片留白
-.infoPanel {
-  padding: 16px 18px;
-  border: 1px solid #ebedf0;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.infoTitle {
-  margin-bottom: 14px;
-  color: rgb(0 0 0 / 88%);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-// 每项按内容取宽：等宽栅格会把机构名挤成两行，标识再被拆断
-.infoGrid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 40px;
-}
-
-.infoItem {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.infoLabel {
-  color: rgb(0 0 0 / 45%);
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-.infoValue {
-  display: flex;
-  min-height: 22px;
-  flex-wrap: wrap;
-  align-items: center;
-  color: rgb(0 0 0 / 88%);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  gap: 6px;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-// 可信度结论：一行判定 + 一行原因，避免与状态条上的执行环境重复表述
-.verdict {
-  display: flex;
-  align-items: flex-start;
-  padding: 12px 14px;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
-  margin-bottom: 14px;
-  background: #fafbfc;
-  gap: 10px;
-}
-
-.verdictDot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  margin-top: 6px;
-}
-
-.verdictBody {
-  min-width: 0;
-}
-
-.verdictText {
-  color: rgb(0 0 0 / 88%);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.verdictReason {
-  margin-top: 2px;
-  color: rgb(0 0 0 / 45%);
-  font-size: 12px;
-  line-height: 1.5;
 }
