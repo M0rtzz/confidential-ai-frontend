@@ -488,7 +488,11 @@ export const ConfidentialModelPanel = ({
       const deployment = modelDetail.deployments?.find(
         (item) => item.status === 'ONLINE',
       );
-      if (!deployment) throw new Error('当前模型没有在线部署');
+      if (!deployment) {
+        // 详情接口会核对运行时并把失联的部署改回 OFFLINE，刷新列表让「重新部署」出现。
+        await refresh();
+        throw new Error('当前模型没有在线部署，请重新部署后再试');
+      }
       setInferencePrompt('');
       setInferenceResult('');
       setInferenceTarget({
@@ -1004,10 +1008,24 @@ export const ConfidentialModelPanel = ({
                     </Button>
                   </>
                 )}
-                {record.status === 'OFFLINE' && record.deployments?.length !== 0 && (
-                  <Button size="small" onClick={() => openImport(record)}>
-                    导入新版本
-                  </Button>
+                {record.status === 'OFFLINE' && (
+                  <>
+                    {/* 运行时是临时状态，容器重启或跨实例继承后原部署不再存在，
+                        已批准的版本需要重新走一次部署授权才能回到在线。 */}
+                    <Button
+                      size="small"
+                      icon={<DeploymentUnitOutlined />}
+                      loading={modelActionId === record.modelId}
+                      onClick={() => void act(record, 'DEPLOY')}
+                    >
+                      重新部署
+                    </Button>
+                    {record.deployments?.length !== 0 && (
+                      <Button size="small" onClick={() => openImport(record)}>
+                        导入新版本
+                      </Button>
+                    )}
+                  </>
                 )}
               </Space>
             ),
