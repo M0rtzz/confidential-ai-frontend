@@ -737,6 +737,7 @@ const ModelEvaluationSection = ({ evaluation }: { evaluation: DataSandboxRecord 
     });
   }
   const sourceLabels: Record<string, string> = {
+    TRUSTED_TRAINING_EVALUATION: '训练结果评估',
     MODEL_SAVE: '保存模型时自动评估',
     MODEL_TEST: '模型测试报告',
     CANVAS_EVALUATION_NODE: '画布评估组件',
@@ -1468,12 +1469,12 @@ const WorkflowModelDrawer = ({
     setSelectedTestId('');
     reportRequestRef.current += 1;
   }, [model?.id]);
-  const loadReport = async (testId = selectedTestId) => {
+  const loadReport = async (testId = selectedTestId, quiet = false) => {
     if (!model?.id) return;
     const modelId = model.id;
     const requestId = ++reportRequestRef.current;
     setSelectedTestId(testId);
-    setReportLoading(true);
+    if (!quiet) setReportLoading(true);
     setReportError('');
     try {
       const nextReport = responseData(
@@ -1504,6 +1505,11 @@ const WorkflowModelDrawer = ({
       }
     }
   };
+  useEffect(() => {
+    if (activeTab !== 'report' || report?.evaluation?.status !== 'RUNNING') return;
+    const timer = window.setTimeout(() => void loadReport(selectedTestId, true), 2500);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, report, selectedTestId, model?.id]);
   const detail = model ? (
     <>
       <Descriptions

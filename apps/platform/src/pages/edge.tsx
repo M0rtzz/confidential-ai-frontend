@@ -209,6 +209,7 @@ const menuItems: EdgeMenuItem[] = [
     icon: <ExportOutlined />,
     component: <TeeExportApprovalComponent />,
     key: 'tee-export-approval',
+    ends: [EndRole.CLIENT],
   },
   {
     label: '统一日志',
