@@ -214,7 +214,18 @@ export const ConfidentialTrainingComponent = () => {
 
   const showLogs = async (task: ConfidentialTrainingTask) => {
     try {
-      setLogs((await ConfidentialTrainingApi.logs(task.taskId)).logs || '当前尚无日志');
+      const result = await ConfidentialTrainingApi.logs(task.taskId);
+      const notes = [
+        result.snapshot
+          ? `已保存的末尾日志${result.savedAt ? ` · ${formatTime(result.savedAt)}` : ''}`
+          : '',
+        result.truncated ? '日志超过 64 KiB，仅保留末尾内容' : '',
+      ].filter(Boolean);
+      setLogs(
+        [notes.length ? `[${notes.join('；')}]` : '', result.logs].filter(Boolean).join('\n') ||
+          result.unavailableReason ||
+          '当前尚无日志',
+      );
     } catch (failure) {
       message.error(failure instanceof Error ? failure.message : '日志加载失败');
     }

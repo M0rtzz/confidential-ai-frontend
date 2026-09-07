@@ -840,7 +840,11 @@ export const DataCatalogComponent = () => {
                 </Form>
               ),
             },
-          ]}
+          ].sort(
+            (left, right) =>
+              ['file', 'table', 'api', 'ai'].indexOf(left.key) -
+              ['file', 'table', 'api', 'ai'].indexOf(right.key),
+          )}
         />
       </Modal>
       <Modal
