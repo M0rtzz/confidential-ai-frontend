@@ -720,6 +720,35 @@ export const TrustChainApi = {
   unbindCheck: () => trustChainGet<DataSandboxRecord>('/unbind-check'),
 };
 
+const gpuChainBase = '/api/v1alpha1/data-sandbox/gpu-chain';
+
+const gpuChainGet = <T>(path: string, params?: Record<string, any>) =>
+  request<DataSandboxResponse<T>>(`${gpuChainBase}${path}`, {
+    method: 'GET',
+    params,
+  });
+
+/**
+ * GPU 密态执行链路：六段明细统一分页，页大小由后端限幅。
+ *
+ * 返回类型由调用方指定，服务层不引入界面模块的类型定义。
+ */
+export const GpuChainApi = {
+  summary: <T = DataSandboxRecord>() => gpuChainGet<T>('/summary'),
+  identities: <T = DataSandboxRecord>(page = 1, size = 20) =>
+    gpuChainGet<T>('/identities', { page, size }),
+  assets: <T = DataSandboxRecord>(page = 1, size = 20) =>
+    gpuChainGet<T>('/assets', { page, size }),
+  attestations: <T = DataSandboxRecord>(page = 1, size = 20) =>
+    gpuChainGet<T>('/attestations', { page, size }),
+  grants: <T = DataSandboxRecord>(page = 1, size = 20) =>
+    gpuChainGet<T>('/grants', { page, size }),
+  executions: <T = DataSandboxRecord>(page = 1, size = 20) =>
+    gpuChainGet<T>('/executions', { page, size }),
+  auditEvents: <T = DataSandboxRecord>(page = 1, size = 20) =>
+    gpuChainGet<T>('/audit-events', { page, size }),
+};
+
 export const responseData = <T>(response: DataSandboxResponse<T>, fallback: T): T => {
   if (response.status?.code !== 0) {
     throw new Error(response.status?.msg || '请求失败');
