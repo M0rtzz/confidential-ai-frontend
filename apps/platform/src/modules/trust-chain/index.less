@@ -36,8 +36,16 @@
 }
 
 .segmentCard {
-  min-width: 150px;
-  flex: 1 1 0;
+  // 卡片是 button，浏览器默认把内容垂直居中；各段指标行数不同，
+  // 居中会让标题落在不同高度上，看起来一格高一格低。显式改成从顶部排列。
+  display: flex;
+  // 不允许压缩到内容以下：压缩后标题与说明会被卡片裁掉。
+  // 宽度不够时由 .chain 横向滚动，而不是把每张卡片挤扁。
+  min-width: 190px;
+  flex: 1 0 190px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   padding: 14px 16px;
   border: 1px solid #e8e8e8;
   border-radius: 6px;
@@ -72,6 +80,8 @@
 
 .segmentHeader {
   display: flex;
+  min-height: 22px;
+  flex: none;
   align-items: center;
   margin-bottom: 12px;
   gap: 8px;
@@ -100,12 +110,15 @@
 // 统一改成每行一条：名称靠左、数值靠右，各段结构一致，只是行数不同。
 .segmentMetrics {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   color: rgb(0 0 0 / 55%);
   font-size: 12px;
   gap: 4px;
 
-  > span {
+  // 排除说明文本：它需要换行，而 .segmentMetrics > span 的优先级高于 .segmentNote，
+  // 不排除的话说明会被锁成一行并溢出卡片。
+  > span:not(.segmentNote) {
     display: flex;
     justify-content: space-between;
     gap: 12px;
@@ -116,9 +129,11 @@
 // 环境认证段给的是一句说明而非指标，允许换行，不参与上面的两端对齐
 .segmentNote {
   display: block;
+  min-width: 0;
   color: rgb(0 0 0 / 55%);
   font-size: 12px;
   line-height: 18px;
+  overflow-wrap: anywhere;
   white-space: normal;
 }
 
