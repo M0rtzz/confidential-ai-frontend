@@ -238,10 +238,10 @@ export const ConfidentialTrainingComponent = () => {
       <Row justify="space-between" align="middle" style={{ marginBottom: 20 }}>
         <Col>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            节点机密训练任务
+            大模型训练任务
           </Typography.Title>
           <Typography.Text type="secondary">
-            双资产审批和一次性密钥释放后，在 CipherGPU 内执行 GPU 训练与结果加密
+            双资产审批和一次性密钥释放后，在 CipherGPU 内执行大模型训练与结果加密
           </Typography.Text>
         </Col>
         <Col>
@@ -389,7 +389,14 @@ export const ConfidentialTrainingComponent = () => {
                     等待客户放钥
                   </Button>
                 )}
-                {['RUNNING', 'ENCRYPTING_OUTPUTS', 'OUTPUT_READY', 'FAILED'].includes(
+                {[
+                  'RUNNING',
+                  'ENCRYPTING_OUTPUTS',
+                  'OUTPUT_READY',
+                  'COMPLETED',
+                  'FAILED',
+                  'CANCELLED',
+                ].includes(
                   row.status,
                 ) && (
                   <Button
