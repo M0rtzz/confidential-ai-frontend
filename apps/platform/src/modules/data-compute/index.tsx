@@ -740,7 +740,7 @@ const ModelEvaluationSection = ({ evaluation }: { evaluation: DataSandboxRecord 
     });
   }
   const sourceLabels: Record<string, string> = {
-    TRUSTED_TRAINING_EVALUATION: '训练结果评估',
+    TRUSTED_TRAINING_EVALUATION: '训练集评估',
     MODEL_SAVE: '保存模型时自动评估',
     MODEL_TEST: '模型测试报告',
     CANVAS_EVALUATION_NODE: '画布评估组件',
