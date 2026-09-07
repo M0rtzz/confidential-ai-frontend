@@ -176,7 +176,9 @@ export const ModelCenterComponent = ({ context }: { context: DataSandboxRecord }
           }
         }),
       );
-      setArtifacts(withVersions);
+      setArtifacts(
+        withVersions.filter((item: DataSandboxRecord) => item.type !== 'JAR'),
+      );
       setPublishableModels(
         responseData(modelRes, []).filter(
           (m) =>
@@ -568,7 +570,7 @@ export const ModelCenterComponent = ({ context }: { context: DataSandboxRecord }
                 rules={[{ required: true, message: '请选择制品' }]}
               >
                 <Select
-                  placeholder="选择 JAR / Python / SQL / 函数制品"
+                  placeholder="选择 Python / SQL / 函数制品"
                   options={artifactOptions}
                   onChange={onSourceChange}
                 />

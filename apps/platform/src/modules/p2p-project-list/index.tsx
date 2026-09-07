@@ -282,16 +282,18 @@ export const P2pProjectListComponent: React.FC = () => {
                         </div>
                       </div>
                       <div className={styles.projectModes}>
-                        {(item.developmentModes || []).map((mode: string) => (
-                          <Tag key={mode} color="blue">
-                            {{
-                              SQL: 'SQL',
-                              PYTHON: 'Python',
-                              FUNCTION_ECOSYSTEM: '函数与生态库管理',
-                              JAR: 'JAR 计算',
-                            }[mode] || mode}
-                          </Tag>
-                        ))}
+                        {(item.developmentModes || [])
+                          .filter((mode: string) => mode !== 'JAR')
+                          .map((mode: string) => (
+                            <Tag key={mode} color="blue">
+                              {{
+                                SQL: 'SQL',
+                                PYTHON: 'Python',
+                                FUNCTION_ECOSYSTEM: '函数与生态库管理',
+                                JAR: 'JAR 计算',
+                              }[mode] || mode}
+                            </Tag>
+                          ))}
                       </div>
                       <Paragraph ellipsis={{ rows: 1 }} className={styles.ellipsisDesc}>
                         {item.description || '暂无描述'}

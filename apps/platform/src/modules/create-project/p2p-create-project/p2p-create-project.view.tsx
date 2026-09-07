@@ -140,7 +140,6 @@ export const P2PCreateProjectModal = ({
               { value: 'SQL', label: 'SQL' },
               { value: 'PYTHON', label: 'Python' },
               { value: 'FUNCTION_ECOSYSTEM', label: '函数与生态库管理' },
-              { value: 'JAR', label: 'JAR 计算' },
             ]}
           />
         </Form.Item>

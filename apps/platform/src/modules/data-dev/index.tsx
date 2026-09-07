@@ -42,7 +42,6 @@ import {
 const canManageResult = () => getEndRole() === EndRole.CLIENT;
 
 const artifactTypeLabels: Record<string, string> = {
-  JAR: 'JAR 制品',
   SQL: 'SQL 脚本',
   PYTHON: 'Python 函数',
   FUNCTION: '函数(UDF)',
@@ -56,7 +55,6 @@ const artifactTypeColors: Record<string, string> = {
 };
 
 const execTypeLabels: Record<string, string> = {
-  JAR: 'JAR',
   SQL: 'SQL',
   PYTHON: 'Python',
   FUNCTION: '函数',
@@ -288,7 +286,7 @@ export const DataDevComponent = () => {
         responseData(
           await DataDevApi.artifacts({ type: artifactType, keyword: artifactKeyword }),
           [],
-        ),
+        ).filter((item: DataSandboxRecord) => item.type !== 'JAR'),
       );
     } catch (error: any) {
       message.error(error.message || '加载制品失败');
@@ -309,7 +307,7 @@ export const DataDevComponent = () => {
             keyword: taskKeyword,
           }),
           [],
-        ),
+        ).filter((item: DataSandboxRecord) => item.exec_type !== 'JAR'),
       );
     } catch (error: any) {
       message.error(error.message || '加载任务失败');
@@ -346,7 +344,13 @@ export const DataDevComponent = () => {
 
   useEffect(() => {
     if (taskOpen) {
-      DataDevApi.artifacts().then((res) => setAllArtifacts(responseData(res, [])));
+      DataDevApi.artifacts().then((res) =>
+        setAllArtifacts(
+          responseData(res, []).filter(
+            (item: DataSandboxRecord) => item.type !== 'JAR',
+          ),
+        ),
+      );
       if (sandboxId) {
         DataComputeApi.sandboxDbDirectory(sandboxId)
           .then((res) => {
@@ -1133,7 +1137,7 @@ export const DataDevComponent = () => {
           <Alert
             type="info"
             showIcon
-            message="仅可编辑名称/描述等元数据，程序内容（代码/JAR）不可修改。"
+            message="仅可编辑名称/描述等元数据，程序代码不可修改。"
           />
         </Form>
       </Modal>
@@ -1489,7 +1493,7 @@ export const DataDevComponent = () => {
             <Form.Item
               name="outputTable"
               label="输出表名（可选）"
-              tooltip="JAR/Python 结果表名；留空自动 result_<任务id>"
+              tooltip="Python 结果表名；留空自动 result_<任务id>"
               style={{ marginBottom: 0 }}
             >
               <Input placeholder="例如 result_agg" style={{ width: 220 }} />
