@@ -163,6 +163,7 @@ export const ObjectsDrawer = ({
   inline?: boolean;
 }) => {
   const [items, setItems] = useState<DataSandboxRecord[]>([]);
+  const [events, setEvents] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<DataSandboxRecord>();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -171,7 +172,17 @@ export const ObjectsDrawer = ({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setItems(responseData(await TrustChainApi.objects(), {}).items || []);
+      const data = responseData(await TrustChainApi.objects(), {});
+      setItems(data.items || []);
+      setEvents(
+        (data.recent || []).map((event: DataSandboxRecord) => {
+          try {
+            return { ...event, evidence: JSON.parse(event.detail || '{}') };
+          } catch {
+            return { ...event, evidence: {} };
+          }
+        }),
+      );
     } catch (error) {
       message.error(requestErrorMessage(error, '加载密文资产失败'));
     } finally {
@@ -244,6 +255,41 @@ export const ObjectsDrawer = ({
                 查看原始存储
               </Button>
             ),
+          },
+        ]}
+      />
+      <Typography.Title level={5}>加密与挂载记录</Typography.Title>
+      <Table
+        rowKey={(row) =>
+          `${row.at}-${row.action}-${row.evidence.projectId}-${row.evidence.assetId}`
+        }
+        size="small"
+        scroll={{ x: 'max-content' }}
+        dataSource={events}
+        pagination={{ pageSize: 10 }}
+        columns={[
+          { title: '时间', dataIndex: 'at', render: formatTime },
+          {
+            title: '行为',
+            dataIndex: 'action',
+            render: (value: string) =>
+              ({
+                MOUNT_ENCRYPT: '挂载时加密',
+                MOUNT_CIPHERTEXT: '挂载并登记已有密文',
+                CIPHERTEXT_RECEIVED: '接收并校验密文',
+              }[value] || value),
+          },
+          { title: '记录机构', dataIndex: 'actor' },
+          { title: '项目', render: (_, row) => row.evidence.projectId || '-' },
+          { title: '数据资产', render: (_, row) => row.evidence.assetId || '-' },
+          {
+            title: '密钥',
+            render: (_, row) =>
+              `${row.evidence.keyId || '-'} / ${row.evidence.keyVersion || '-'}`,
+          },
+          {
+            title: '密文摘要',
+            render: (_, row) => short(row.evidence.ciphertextSha256, 12),
           },
         ]}
       />
