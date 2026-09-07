@@ -202,7 +202,9 @@ export const SandboxApprovalComponent = () => {
       ]);
       const taskDirection = view === 'mine' ? 'OUTGOING' : 'INCOMING';
       setItems([
-        ...responseData(resources as any, []),
+        ...responseData(resources as any, []).filter(
+          (item: DataSandboxRecord) => item.approval_type !== 'DEV_TASK',
+        ),
         ...responseData(taskApprovals as any, [])
           .filter((item: DataSandboxRecord) => !status || item.status === status)
           .map((item: DataSandboxRecord) => ({ ...item, direction: taskDirection })),
