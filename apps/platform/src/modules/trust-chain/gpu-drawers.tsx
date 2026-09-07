@@ -208,13 +208,6 @@ export const GpuDomainsPanel = ({
     open={open}
     onClose={onClose}
   >
-    <Alert
-      showIcon
-      type="warning"
-      message="可信域准入校验"
-      description="校验可信域身份、安全配置与证据类型，依据准入策略控制使用权限。"
-      style={{ marginBottom: 12 }}
-    />
     <Table<GpuTrustedDomain>
       rowKey={(row) => row.id}
       size="small"
