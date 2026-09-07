@@ -19,7 +19,6 @@ import { responseData, TrustChainApi } from '@/services/data-sandbox';
 import type { DataSandboxRecord } from '@/services/data-sandbox';
 
 import {
-  blockerLabel,
   exportStateLabel,
   formatBytes,
   hexRows,
@@ -495,17 +494,6 @@ export const AttestationDrawer = ({
               </Text>
             ) : (
               <Text type="secondary">本端不运行 TEE 容器</Text>
-            )}
-          </Descriptions.Item>
-          <Descriptions.Item label="阻塞项">
-            {environment.blockers.length ? (
-              environment.blockers.map((code) => (
-                <Tag key={code} color="warning" style={{ marginBottom: 4 }}>
-                  {blockerLabel[code] || code}
-                </Tag>
-              ))
-            ) : (
-              <Text type="secondary">无</Text>
             )}
           </Descriptions.Item>
         </Descriptions>
