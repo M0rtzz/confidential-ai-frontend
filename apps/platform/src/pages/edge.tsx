@@ -4,12 +4,12 @@ import {
   AuditOutlined,
   CalculatorOutlined,
   CloudServerOutlined,
-  DashboardOutlined,
   DeploymentUnitOutlined,
   ExperimentOutlined,
   ExportOutlined,
   FileSearchOutlined,
   IdcardOutlined,
+  KeyOutlined,
   NodeIndexOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -92,6 +92,11 @@ const TrustChainComponent = lazy(() =>
     default: Component,
   })),
 );
+const KeyManagementComponent = lazy(() =>
+  import('@/modules/key-management').then(({ KeyManagementComponent: Component }) => ({
+    default: Component,
+  })),
+);
 const UserManagementComponent = lazy(() =>
   import('@/modules/system-management').then(
     ({ UserManagementComponent: Component }) => ({
@@ -149,6 +154,39 @@ type EdgeMenuItem = {
 
 const menuItems: EdgeMenuItem[] = [
   {
+    label: 'TEE可信底座',
+    icon: <SafetyCertificateOutlined />,
+    key: 'tee-foundation',
+    children: [
+      {
+        label: '可信执行链路',
+        key: 'trust-chain',
+        icon: <NodeIndexOutlined />,
+        component: <TrustChainComponent />,
+      },
+      {
+        label: 'TEE环境管理',
+        key: 'sandbox-resource-application',
+        icon: <ExperimentOutlined />,
+        component: <SandboxManagerComponent />,
+        // TEE环境由中心端发起并分配算力，客户端只参与投票，不需要这份列表
+        ends: [EndRole.CENTER],
+      },
+      {
+        label: '密钥管理',
+        key: 'key-management',
+        icon: <KeyOutlined />,
+        component: (
+          <SecureContextGate>
+            <KeyManagementComponent />
+          </SecureContextGate>
+        ),
+        // 客户密钥的浏览器封装与轮换只在中心端进行
+        ends: [EndRole.CENTER],
+      },
+    ],
+  },
+  {
     label: '工作台',
     icon: <Icon component={Workbench} />,
     component: <P2PWorkbenchComponent />,
@@ -176,30 +214,14 @@ const menuItems: EdgeMenuItem[] = [
         key: 'data-governance',
         icon: <DeploymentUnitOutlined />,
         component: <DataGovernanceComponent />,
-        ends: [EndRole.CLIENT],
       },
     ],
   },
   {
-    label: '资源管理',
-    icon: <DashboardOutlined />,
-    key: 'resource-management',
-    children: [
-      {
-        label: 'TEE环境列表',
-        key: 'sandbox-resource-application',
-        icon: <ExperimentOutlined />,
-        component: <SandboxManagerComponent />,
-        // TEE环境由中心端发起并分配算力，客户端只参与投票，不需要这份列表
-        ends: [EndRole.CENTER],
-      },
-      {
-        label: '项目资源审核',
-        key: 'sandbox-resource-review',
-        icon: <AuditOutlined />,
-        component: <SandboxApprovalComponent />,
-      },
-    ],
+    label: '项目资源审核',
+    icon: <AuditOutlined />,
+    key: 'sandbox-resource-review',
+    component: <SandboxApprovalComponent />,
   },
   {
     label: '密文计算',
@@ -254,12 +276,6 @@ const menuItems: EdgeMenuItem[] = [
         ),
       },
     ],
-  },
-  {
-    label: '可信执行链路',
-    icon: <NodeIndexOutlined />,
-    component: <TrustChainComponent />,
-    key: 'trust-chain',
   },
   {
     label: '模型审批',
