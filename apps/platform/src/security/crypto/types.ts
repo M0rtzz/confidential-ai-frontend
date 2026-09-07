@@ -3,6 +3,7 @@ export type SecurityProfile = 'a100-sim' | 'gpu-cc-prod';
 export type RuntimeSecurityRequirement = 'gpu-cc' | 'controlled-sim-ok' | 'public';
 
 export type ContentEncryptionAlgorithm =
+  | 'SM4-GCM'
   | 'AES-256-GCM'
   | 'AES-256-GCM-SIV'
   | 'CHACHA20-POLY1305'

@@ -1,6 +1,8 @@
 import { aessiv, gcmsiv } from '@noble/ciphers/aes.js';
 import { chacha20poly1305, xchacha20poly1305 } from '@noble/ciphers/chacha.js';
 
+import { sm4 } from 'sm-crypto-v2';
+
 import { canonicalBytes, toArrayBuffer } from './hash';
 import type { ContentEncryptionAlgorithm, ContentEncryptionCapability } from './types';
 
@@ -14,6 +16,15 @@ export const CONTENT_ENCRYPTION_CAPABILITIES: ContentEncryptionCapability[] = [
     tagSize: 16,
     implementationVersion: '1',
     recommended: true,
+  },
+  {
+    algorithm: 'SM4-GCM',
+    label: 'SM4-GCM（国密）',
+    description: '国密 SM4 认证加密，支持密文完整性校验',
+    keySize: 16,
+    nonceSize: 12,
+    tagSize: 16,
+    implementationVersion: '1',
   },
   {
     algorithm: 'AES-256-GCM-SIV',
@@ -128,6 +139,22 @@ export const encryptContent = async (
         plaintext,
       );
     }
+    if (algorithm === 'SM4-GCM') {
+      const encrypted = sm4.encrypt(plaintextBytes, key, {
+        mode: 'gcm',
+        padding: 'none',
+        iv: nonce,
+        associatedData: aadBytes,
+        output: 'array',
+        outputTag: true,
+      });
+      if (!encrypted.tag || encrypted.tag.length !== 16)
+        throw new Error('SM4-GCM 认证标签无效');
+      const output = new Uint8Array(encrypted.output.length + encrypted.tag.length);
+      output.set(encrypted.output);
+      output.set(encrypted.tag, encrypted.output.length);
+      return toArrayBuffer(output);
+    }
     if (algorithm === 'AES-256-GCM-SIV') {
       return toArrayBuffer(gcmsiv(key, nonce, aadBytes).encrypt(plaintextBytes));
     }
@@ -179,6 +206,20 @@ export const decryptContent = async (
       );
     }
     const value = new Uint8Array(ciphertext);
+    if (algorithm === 'SM4-GCM') {
+      if (nonce.length !== 12 || value.length < 16)
+        throw new Error('SM4-GCM 密文参数无效');
+      return toArrayBuffer(
+        sm4.decrypt(value.subarray(0, -16), key, {
+          mode: 'gcm',
+          padding: 'none',
+          iv: nonce,
+          associatedData: aadBytes,
+          output: 'array',
+          tag: value.subarray(-16),
+        }),
+      );
+    }
     if (algorithm === 'AES-256-GCM-SIV')
       return toArrayBuffer(gcmsiv(key, nonce, aadBytes).decrypt(value));
     if (algorithm === 'CHACHA20-POLY1305')
