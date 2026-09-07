@@ -125,20 +125,26 @@ const CpuTrustChainView = ({
         selected={selected}
         onSelect={(key) => setSelected(key as SegmentKey)}
         renderMetrics={(segment) =>
-          segment.key === 'ATTESTATION'
-            ? environment?.runtimeMode === 'SIMULATION'
-              ? '仿真 · 无硬件证明'
-              : environment?.attestationVerified
-              ? '硬件证明已验证'
-              : '硬件证明未验证'
-            : segment.metrics.map((metric) => (
-                <span key={metric.label}>
+          segment.key === 'ATTESTATION' ? (
+            <span className={styles.segmentNote}>
+              {environment?.runtimeMode === 'SIMULATION'
+                ? '仿真 · 无硬件证明'
+                : environment?.attestationVerified
+                ? '硬件证明已验证'
+                : '硬件证明未验证'}
+            </span>
+          ) : (
+            segment.metrics.map((metric) => (
+              <span key={metric.label}>
+                <span>
                   {metric.label === '总数' || metric.label === '总任务'
                     ? '记录数'
-                    : metric.label}{' '}
-                  <strong>{metric.value}</strong>
+                    : metric.label}
                 </span>
-              ))
+                <strong>{metric.value}</strong>
+              </span>
+            ))
+          )
         }
       />
       {summary && (

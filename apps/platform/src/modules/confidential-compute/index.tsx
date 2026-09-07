@@ -47,7 +47,6 @@ import {
 
 import { AssetManagementPanel, ResultAssetPanel } from './asset-management';
 import styles from './index.less';
-import { CustomerKeyManagement } from './key-management';
 
 type DataSource = keyof typeof confidentialComputeAdapters;
 type Scenario =
@@ -566,7 +565,7 @@ export const ConfidentialComputeComponent = () => {
             onClick={() => void refresh()}
           />
         </Tooltip>
-        <CustomerKeyManagement />
+        {/* 客户密钥改由「TEE可信底座 › 密钥管理」承担，此处不再重复入口 */}
         <Button
           type="primary"
           icon={<ExperimentOutlined />}

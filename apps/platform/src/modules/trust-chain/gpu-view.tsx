@@ -110,13 +110,18 @@ export const GpuTrustChainView = ({
         selected={selected}
         onSelect={(key) => setSelected(key as GpuSegmentKey)}
         renderMetrics={(segment) =>
-          segment.key === 'ATTESTATION'
-            ? '实验室模拟证据 · 无 GPU 硬件机密隔离'
-            : segment.metrics.map((metric) => (
-                <span key={metric.label}>
-                  {metric.label} <strong>{metric.value}</strong>
-                </span>
-              ))
+          segment.key === 'ATTESTATION' ? (
+            <span className={styles.segmentNote}>
+              实验室模拟证据 · 无 GPU 硬件机密隔离
+            </span>
+          ) : (
+            segment.metrics.map((metric) => (
+              <span key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+              </span>
+            ))
+          )
         }
       />
       {summary && (

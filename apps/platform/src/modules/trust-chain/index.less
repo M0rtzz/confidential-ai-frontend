@@ -96,17 +96,30 @@
   white-space: nowrap;
 }
 
+// 各段的指标条数与名称长度不一，按行排会出现有的段折行、有的不折，卡片高矮不齐。
+// 统一改成每行一条：名称靠左、数值靠右，各段结构一致，只是行数不同。
 .segmentMetrics {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   color: rgb(0 0 0 / 55%);
   font-size: 12px;
-  gap: 4px 10px;
+  gap: 4px;
 
-  // 指标名与数值之间有空格，不锁住会在窄卡片里断开，只有该段折行、与其余段不齐
   > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
     white-space: nowrap;
   }
+}
+
+// 环境认证段给的是一句说明而非指标，允许换行，不参与上面的两端对齐
+.segmentNote {
+  display: block;
+  color: rgb(0 0 0 / 55%);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: normal;
 }
 
 .detailPanel {
