@@ -262,10 +262,19 @@ export const SandboxApprovalComponent = () => {
     }
   };
 
-  const openReview = (item: DataSandboxRecord, action: string) => {
-    setReviewItem(item);
+  const openReview = async (item: DataSandboxRecord, action: string) => {
     setReviewAction(action);
     reviewForm.resetFields();
+    if (item.approval_type === 'DEV_TASK') {
+      try {
+        const full = responseData(await DataDevApi.taskApprovalDetail(item.id), item);
+        setReviewItem(full);
+      } catch {
+        setReviewItem(item);
+      }
+    } else {
+      setReviewItem(item);
+    }
   };
 
   const openModelApproval = (id: string) => {
@@ -432,25 +441,29 @@ export const SandboxApprovalComponent = () => {
                       拒绝
                     </Button>
                   )}
-                {view === 'mine' && row.approval_type !== 'DEV_TASK' && row.status === 'REJECTED' && (
-                  <Button type="link" onClick={() => directAction(row, 'RESUBMIT')}>
-                    提交复审
-                  </Button>
-                )}
-                {view === 'mine' && row.approval_type !== 'DEV_TASK' && row.status === 'FAILED' && (
-                  <Button type="link" onClick={() => directAction(row, 'RETRY')}>
-                    重试
-                  </Button>
-                )}
+                {view === 'mine' &&
+                  row.approval_type !== 'DEV_TASK' &&
+                  row.status === 'REJECTED' && (
+                    <Button type="link" onClick={() => directAction(row, 'RESUBMIT')}>
+                      提交复审
+                    </Button>
+                  )}
+                {view === 'mine' &&
+                  row.approval_type !== 'DEV_TASK' &&
+                  row.status === 'FAILED' && (
+                    <Button type="link" onClick={() => directAction(row, 'RETRY')}>
+                      重试
+                    </Button>
+                  )}
                 {view === 'mine' &&
                   ((row.approval_type === 'DEV_TASK' &&
                     row.status === 'DATA_PROVIDER_REVIEW') ||
                     (row.approval_type !== 'DEV_TASK' &&
                       CANCELLABLE.includes(row.status))) && (
-                  <Button type="link" onClick={() => directAction(row, 'CANCEL')}>
-                    撤回
-                  </Button>
-                )}
+                    <Button type="link" onClick={() => directAction(row, 'CANCEL')}>
+                      撤回
+                    </Button>
+                  )}
                 <Button
                   type="link"
                   onClick={async () => {
@@ -479,14 +492,8 @@ export const SandboxApprovalComponent = () => {
                     }
                     setDetail(
                       row.approval_type === 'DEV_TASK'
-                        ? responseData(
-                            await DataDevApi.taskApprovalDetail(row.id),
-                            {},
-                          )
-                        : responseData(
-                            await DataSandboxApi.approvalDetail(row.id),
-                            {},
-                          ),
+                        ? responseData(await DataDevApi.taskApprovalDetail(row.id), {})
+                        : responseData(await DataSandboxApi.approvalDetail(row.id), {}),
                     );
                   }}
                 >
@@ -503,6 +510,7 @@ export const SandboxApprovalComponent = () => {
           reviewItem?.id || ''
         }（${reviewItem ? typeLabels[reviewItem.approval_type] : ''}）`}
         open={!!reviewItem}
+        width={reviewItem?.approval_type === 'DEV_TASK' ? 680 : 520}
         onCancel={() => {
           setReviewItem(undefined);
           setReviewAction('');
@@ -512,9 +520,85 @@ export const SandboxApprovalComponent = () => {
         cancelText="取消"
         okButtonProps={reviewAction === 'REJECT' ? { danger: true } : undefined}
       >
+        {reviewItem?.approval_type === 'DEV_TASK' &&
+          (() => {
+            const payload = parseApprovalPayload(
+              reviewItem.payload || reviewItem.payload_json,
+            );
+            const aiReport = parseApprovalPayload(payload.aiReport);
+            const findings = Array.isArray(aiReport.findings) ? aiReport.findings : [];
+            return (
+              <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }}>
+                <Alert
+                  showIcon
+                  type={
+                    ['HIGH', 'CRITICAL'].includes(String(aiReport.riskLevel))
+                      ? 'error'
+                      : aiReport.riskLevel === 'MEDIUM'
+                      ? 'warning'
+                      : 'success'
+                  }
+                  message={`AI 代码安全扫描建议（风险等级：${
+                    aiReport.riskLevel || '未知'
+                  }）`}
+                  description={
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <div>
+                        {String(aiReport.summary || '未检测到明显隐私泄露或代码漏洞')}
+                      </div>
+                      {findings.length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          <span style={{ fontWeight: 500 }}>审计发现：</span>
+                          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                            {findings.map((f: any, idx: number) => (
+                              <li key={idx}>
+                                [{f.category || '安全提示'}]{' '}
+                                {f.description || f.finding || JSON.stringify(f)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </Space>
+                  }
+                />
+                {payload.code && (
+                  <div>
+                    <span style={{ fontSize: 12, color: '#666' }}>
+                      待执行代码摘要：
+                    </span>
+                    <pre
+                      style={{
+                        maxHeight: 140,
+                        overflow: 'auto',
+                        background: '#f5f5f5',
+                        padding: 8,
+                        borderRadius: 4,
+                        fontSize: 12,
+                        margin: '4px 0 0 0',
+                      }}
+                    >
+                      {String(payload.code)}
+                    </pre>
+                  </div>
+                )}
+              </Space>
+            );
+          })()}
         <Form form={reviewForm} layout="vertical" onFinish={review}>
-          <Form.Item name="comment" label="审批意见" rules={[{ required: true }]}>
-            <Input.TextArea rows={4} />
+          <Form.Item
+            name="comment"
+            label="审批意见"
+            rules={[{ required: true, message: '请输入审批意见' }]}
+          >
+            <Input.TextArea
+              rows={4}
+              placeholder={
+                reviewItem?.approval_type === 'DEV_TASK'
+                  ? '请查阅上述 AI 建议后填写审批处理意见'
+                  : '请输入审批意见'
+              }
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -557,37 +641,80 @@ export const SandboxApprovalComponent = () => {
           <div>所属节点 ID：{detail?.applicant_node_id || detail?.owner_id}</div>
           <div>所属项目：{detail?.project_name || detail?.project_id || '-'}</div>
           <div>提交人：{detail?.submitter}</div>
-          {detail?.approval_type === 'DEV_TASK' && (() => {
-            const payload = parseApprovalPayload(detail.payload || detail.payload_json);
-            const report = parseApprovalPayload(payload.aiReport);
-            return (
-              <>
-                <Alert
-                  showIcon
-                  type={['HIGH', 'CRITICAL'].includes(String(report.riskLevel)) ? 'error' : 'warning'}
-                  message={`AI 风险等级：${report.riskLevel || '未知'}`}
-                  description={String(report.summary || '无结论摘要')}
-                />
-                <Descriptions
-                  bordered
-                  size="small"
-                  column={1}
-                  items={[
-                    { key: 'task', label: '任务', children: payload.taskName || payload.taskId || '-' },
-                    { key: 'type', label: '执行类型', children: `${payload.execType || '-'} / ${payload.runMode || '-'}` },
-                    { key: 'snapshot', label: '快照摘要', children: payload.snapshotSha256 || '-' },
-                    { key: 'model', label: '审核模型', children: `${payload.aiModelId || '-'}（配置 v${payload.aiConfigVersion || 0}）` },
-                    { key: 'findings', label: '风险发现', children: JSON.stringify(report.findings || [], null, 2) },
-                    { key: 'limitations', label: '分析局限', children: JSON.stringify(report.limitations || [], null, 2) },
-                  ]}
-                />
-                <div>不可变执行代码：</div>
-                <pre style={{ maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap', background: '#f5f5f5', padding: 12 }}>
-                  {String(payload.code || '无可读代码')}
-                </pre>
-              </>
-            );
-          })()}
+          {detail?.approval_type === 'DEV_TASK' &&
+            (() => {
+              const payload = parseApprovalPayload(
+                detail.payload || detail.payload_json,
+              );
+              const report = parseApprovalPayload(payload.aiReport);
+              return (
+                <>
+                  <Alert
+                    showIcon
+                    type={
+                      ['HIGH', 'CRITICAL'].includes(String(report.riskLevel))
+                        ? 'error'
+                        : 'warning'
+                    }
+                    message={`AI 风险等级：${report.riskLevel || '未知'}`}
+                    description={String(report.summary || '无结论摘要')}
+                  />
+                  <Descriptions
+                    bordered
+                    size="small"
+                    column={1}
+                    items={[
+                      {
+                        key: 'task',
+                        label: '任务',
+                        children: payload.taskName || payload.taskId || '-',
+                      },
+                      {
+                        key: 'type',
+                        label: '执行类型',
+                        children: `${payload.execType || '-'} / ${
+                          payload.runMode || '-'
+                        }`,
+                      },
+                      {
+                        key: 'snapshot',
+                        label: '快照摘要',
+                        children: payload.snapshotSha256 || '-',
+                      },
+                      {
+                        key: 'model',
+                        label: '审核模型',
+                        children: `${payload.aiModelId || '-'}（配置 v${
+                          payload.aiConfigVersion || 0
+                        }）`,
+                      },
+                      {
+                        key: 'findings',
+                        label: '风险发现',
+                        children: JSON.stringify(report.findings || [], null, 2),
+                      },
+                      {
+                        key: 'limitations',
+                        label: '分析局限',
+                        children: JSON.stringify(report.limitations || [], null, 2),
+                      },
+                    ]}
+                  />
+                  <div>不可变执行代码：</div>
+                  <pre
+                    style={{
+                      maxHeight: 300,
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      background: '#f5f5f5',
+                      padding: 12,
+                    }}
+                  >
+                    {String(payload.code || '无可读代码')}
+                  </pre>
+                </>
+              );
+            })()}
           {detail?.approval_type === 'ASSET_DELETE' && (
             <>
               <div>数据名称：{detail?.asset_detail?.name || '未知'}</div>
