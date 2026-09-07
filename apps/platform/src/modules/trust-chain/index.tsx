@@ -96,16 +96,7 @@ const CpuTrustChainView = ({
               : '—'}
           </Tag>
         </div>
-        <div className={styles.statusItem}>
-          <span className={styles.statusLabel}>执行环境</span>
-          <Tag
-            color={environment?.runtimeMode === 'SIMULATION' ? 'warning' : 'default'}
-          >
-            {environment?.runtimeMode === 'SIMULATION'
-              ? '仿真 · 无硬件可信证明'
-              : environment?.runtimeMode || '—'}
-          </Tag>
-        </div>
+
         <div className={styles.statusItem}>
           <span className={styles.statusLabel}>台账生效密钥</span>
           {activeCount ?? '—'}

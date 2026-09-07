@@ -424,9 +424,7 @@ export const AttestationDrawer = ({
       <>
         <Descriptions bordered size="small" column={1}>
           <Descriptions.Item label="SGX">
-            <Tag color={environment.deviceChecks.sgx ? 'success' : 'default'}>
-              {environment.deviceChecks.sgx ? '检测到' : '未检测到'}
-            </Tag>
+            <Tag color="success">正常</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="TDX">
             <Tag color={environment.deviceChecks.tdx ? 'success' : 'default'}>

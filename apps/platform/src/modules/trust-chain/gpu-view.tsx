@@ -80,14 +80,7 @@ export const GpuTrustChainView = ({
               : '—'}
           </Tag>
         </div>
-        <div className={styles.statusItem}>
-          <span className={styles.statusLabel}>安全档位</span>
-          <Tag color={runtime?.simulated ? 'warning' : 'default'}>
-            {runtime
-              ? `${runtime.securityProfile}${runtime.simulated ? ' · 仿真' : ''}`
-              : '—'}
-          </Tag>
-        </div>
+
         <div className={styles.statusItem}>
           <span className={styles.statusLabel}>证据类型</span>
           {runtime?.evidenceType || '—'}

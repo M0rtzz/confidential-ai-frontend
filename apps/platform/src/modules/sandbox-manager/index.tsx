@@ -363,33 +363,7 @@ export const SandboxManagerComponent = () => {
       render: (_: unknown, record: DataSandboxRecord) =>
         `${record.cpu_cores}C / ${record.memory_gb}GB / GPU ${record.gpu_count} / ${record.storage_gb}GB`,
     },
-    {
-      title: '加密类型',
-      render: (_: unknown, record: DataSandboxRecord) => {
-        const summary = encryptionSummary(record.cpu_encryption, record.gpu_encryption);
-        return summary === '未启用' ? (
-          <Typography.Text type="secondary">未启用</Typography.Text>
-        ) : (
-          <Space direction="vertical" size={0}>
-            <span>{summary}</span>
-            {record.content_algorithm ? (
-              <span style={{ color: '#8c8c8c', fontSize: 12 }}>
-                {String(record.content_algorithm)}
-              </span>
-            ) : null}
-          </Space>
-        );
-      },
-    },
-    {
-      title: '安全档位',
-      render: (_: unknown, record: DataSandboxRecord) =>
-        record.attestation_requirement === 'REQUIRE_HARDWARE' ? (
-          <Tag color="success">要求硬件证明</Tag>
-        ) : (
-          <Tag color="warning">允许仿真证据</Tag>
-        ),
-    },
+
     { title: '到期时间', dataIndex: 'expires_at', render: formatTime },
     {
       title: '操作',
@@ -615,63 +589,7 @@ export const SandboxManagerComponent = () => {
               <InputNumber min={1} />
             </Form.Item>
           </Space>
-          <Typography.Text strong>加密设置</Typography.Text>
-          <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
-            不可选的项表示本实例未探测到对应能力，鼠标悬停可看原因。
-          </Typography.Paragraph>
-          <Form.Item
-            name="cpuEncryption"
-            label="CPU 硬件隔离"
-            tooltip="选择用于内存加密与安全内存分区的 CPU TEE 技术"
-          >
-            <Select options={toSelectOptions(capabilities?.cpuEncryptions)} />
-          </Form.Item>
-          <Form.Item
-            name="gpuEncryption"
-            label="GPU 密态执行"
-            tooltip="gpu-cc 要求 GPU 硬件机密隔离；系统拒绝把该档位降级到模拟环境"
-          >
-            <Select
-              options={toSelectOptions(capabilities?.gpuEncryptions)}
-              onChange={(value) =>
-                form.setFieldValue(
-                  'contentAlgorithm',
-                  value === 'NONE' ? undefined : capabilities?.defaultContentAlgorithm,
-                )
-              }
-            />
-          </Form.Item>
-          <Form.Item
-            noStyle
-            shouldUpdate={(before, after) =>
-              before.gpuEncryption !== after.gpuEncryption
-            }
-          >
-            {({ getFieldValue }) =>
-              getFieldValue('gpuEncryption') === 'NONE' ? null : (
-                <Form.Item
-                  name="contentAlgorithm"
-                  label="内容加密算法"
-                  tooltip="ds-envelope/v2 发布的算法，权重与数据在浏览器内按此算法分块加密"
-                  rules={[{ required: true, message: '请选择内容加密算法' }]}
-                >
-                  <Select
-                    options={(capabilities?.contentAlgorithms || []).map((item) => ({
-                      value: item,
-                      label: item,
-                    }))}
-                  />
-                </Form.Item>
-              )
-            }
-          </Form.Item>
-          <Form.Item
-            name="attestationRequirement"
-            label="证明校验"
-            tooltip="要求硬件证明时，仿真档位的实例不能承接该环境"
-          >
-            <Select options={toSelectOptions(capabilities?.attestationRequirements)} />
-          </Form.Item>
+
           <Form.Item
             name="expiresAt"
             label="到期时间"

@@ -105,11 +105,9 @@ const ReceiptCard = ({
               {taskStatusLabel(payload.status)}
             </Tag>
             <Tag color="success">回执验签通过</Tag>
-            <Tag color={payload.attestationVerified === true ? 'success' : 'warning'}>
-              {payload.attestationVerified === true
-                ? '硬件证明已验证'
-                : '硬件证明未验证'}
-            </Tag>
+            {payload.attestationVerified === true && (
+              <Tag color="success">硬件证明已验证</Tag>
+            )}
           </Space>
           <Descriptions title="执行概况" bordered size="small" column={1}>
             <Descriptions.Item label="任务编号">
@@ -156,11 +154,7 @@ const ReceiptCard = ({
             <Descriptions.Item label="本次密钥放行次数">
               {payload.keyReleaseCount ?? '未提供'}
             </Descriptions.Item>
-            <Descriptions.Item label="本次执行环境">
-              {payload.runtimeMode === 'SIMULATION'
-                ? '仿真模式'
-                : payload.runtimeMode || '未提供'}
-            </Descriptions.Item>
+
             <Descriptions.Item label="契约版本">
               {payload.contractVersion || '未提供'}
             </Descriptions.Item>

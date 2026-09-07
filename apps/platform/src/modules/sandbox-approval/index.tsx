@@ -425,14 +425,18 @@ export const SandboxApprovalComponent = () => {
               <Space wrap>
                 {view === 'review' &&
                   row.approval_type !== 'MODEL_API' &&
-                  REVIEWABLE.includes(row.status) && (
+                  REVIEWABLE.includes(row.status) &&
+                  row.my_vote_status !== 'APPROVED' &&
+                  row.my_vote_status !== 'REJECTED' && (
                     <Button type="link" onClick={() => openReview(row, 'APPROVE')}>
                       同意
                     </Button>
                   )}
                 {view === 'review' &&
                   row.approval_type !== 'MODEL_API' &&
-                  REVIEWABLE.includes(row.status) && (
+                  REVIEWABLE.includes(row.status) &&
+                  row.my_vote_status !== 'APPROVED' &&
+                  row.my_vote_status !== 'REJECTED' && (
                     <Button
                       type="link"
                       danger
@@ -441,6 +445,12 @@ export const SandboxApprovalComponent = () => {
                       拒绝
                     </Button>
                   )}
+                {view === 'review' && row.my_vote_status === 'APPROVED' && (
+                  <Tag color="success">本节点已同意</Tag>
+                )}
+                {view === 'review' && row.my_vote_status === 'REJECTED' && (
+                  <Tag color="error">本节点已拒绝</Tag>
+                )}
                 {view === 'mine' &&
                   row.approval_type !== 'DEV_TASK' &&
                   row.status === 'REJECTED' && (
@@ -641,6 +651,20 @@ export const SandboxApprovalComponent = () => {
           <div>所属节点 ID：{detail?.applicant_node_id || detail?.owner_id}</div>
           <div>所属项目：{detail?.project_name || detail?.project_id || '-'}</div>
           <div>提交人：{detail?.submitter}</div>
+          {detail?.review_comment && (
+            <div
+              style={{
+                background: '#f6ffed',
+                border: '1px solid #b7eb8f',
+                padding: '8px 12px',
+                borderRadius: 4,
+                margin: '6px 0',
+              }}
+            >
+              <strong>审批意见：</strong>
+              <span>{detail.review_comment}</span>
+            </div>
+          )}
           {detail?.approval_type === 'DEV_TASK' &&
             (() => {
               const payload = parseApprovalPayload(
@@ -668,6 +692,11 @@ export const SandboxApprovalComponent = () => {
                         key: 'task',
                         label: '任务',
                         children: payload.taskName || payload.taskId || '-',
+                      },
+                      {
+                        key: 'review_comment',
+                        label: '审批意见',
+                        children: detail?.review_comment || '-',
                       },
                       {
                         key: 'type',
