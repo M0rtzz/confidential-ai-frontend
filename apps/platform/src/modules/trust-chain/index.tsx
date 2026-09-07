@@ -117,13 +117,7 @@ const CpuTrustChainView = ({
         onSelect={(key) => setSelected(key as SegmentKey)}
         renderMetrics={(segment) =>
           segment.key === 'ATTESTATION' ? (
-            <span className={styles.segmentNote}>
-              {environment?.runtimeMode === 'SIMULATION'
-                ? '仿真 · 无硬件证明'
-                : environment?.attestationVerified
-                ? '硬件证明已验证'
-                : '硬件证明未验证'}
-            </span>
+            <span className={styles.segmentNote}>执行环境身份与完整性校验</span>
           ) : (
             segment.metrics.map((metric) => (
               <span key={metric.label}>

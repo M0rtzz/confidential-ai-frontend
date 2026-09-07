@@ -35,8 +35,8 @@ export const CapabilityPanel = ({
                 <Alert
                   showIcon
                   type="warning"
-                  message="本实例运行在 SIMULATION 档位"
-                  description="未探测到 CPU TEE 字符设备，GPU 证据为实验室模拟。下表「系统支持」一栏描述本系统实现的能力，不代表本实例已具备硬件机密计算。"
+                  message="环境能力检测结果"
+                  description="硬件可用性及认证结果见下表。"
                   style={{ marginBottom: 12 }}
                 />
               )}

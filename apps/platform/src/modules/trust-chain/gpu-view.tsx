@@ -104,9 +104,7 @@ export const GpuTrustChainView = ({
         onSelect={(key) => setSelected(key as GpuSegmentKey)}
         renderMetrics={(segment) =>
           segment.key === 'ATTESTATION' ? (
-            <span className={styles.segmentNote}>
-              实验室模拟证据 · 无 GPU 硬件机密隔离
-            </span>
+            <span className={styles.segmentNote}>任务绑定证明与一次性密钥授权</span>
           ) : (
             segment.metrics.map((metric) => (
               <span key={metric.label}>

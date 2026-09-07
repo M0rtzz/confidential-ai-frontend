@@ -399,7 +399,7 @@ export const PolicyDrawer = ({
   );
 };
 
-/** ④ 环境认证：仿真模式下 SGX / TDX / CSV 逐项展示，切换真实 TEE 按钮置灰 */
+/** ④ 环境认证：展示设备检测、镜像摘要及证明验证信息。 */
 export const AttestationDrawer = ({
   open,
   onClose,
@@ -464,16 +464,12 @@ export const AttestationDrawer = ({
           </Descriptions.Item>
         </Descriptions>
         <div style={{ marginTop: 16 }}>
-          <Button disabled>切换到真实 TEE</Button>
           <Alert
             showIcon
             type="info"
             style={{ marginTop: 8 }}
-            message={
-              environment.runtimeMode === 'SIMULATION'
-                ? '当前为仿真模式，未取得硬件可信证明。'
-                : '当前页面不提供运行模式切换。'
-            }
+            message="执行环境信息"
+            description="查看环境身份、镜像摘要与证明信息。"
           />
         </div>
       </>

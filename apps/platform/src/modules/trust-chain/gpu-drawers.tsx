@@ -211,8 +211,8 @@ export const GpuDomainsPanel = ({
     <Alert
       showIcon
       type="warning"
-      message="校验通过只表示协议字段符合预期"
-      description="可信域校验核对 CipherGPU 健康接口返回的安全档位、证据类型与仿真标识，不代表 GPU 取得了硬件机密隔离。"
+      message="可信域准入校验"
+      description="校验可信域身份、安全配置与证据类型，依据准入策略控制使用权限。"
       style={{ marginBottom: 12 }}
     />
     <Table<GpuTrustedDomain>
@@ -262,7 +262,7 @@ export const GpuAttestationsPanel = (props: PanelProps) => (
     fetchPage={GpuChainApi.attestations}
     rowKey={(row) => String(row.sessionId)}
     emptyHint="本机构尚无证明会话。发起模型部署或协议验证后会产生记录。"
-    footer="证据为实验室模拟（SIMULATED_LAB_V1），非硬件远程证明。TEK 与证明会话均不可跨任务复用。"
+    footer="证明会话绑定任务及临时公钥，仅在有效期内使用，不支持跨任务复用。"
     columns={[
       {
         title: '会话',

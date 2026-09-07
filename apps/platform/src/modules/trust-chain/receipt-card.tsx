@@ -281,7 +281,7 @@ export const TasksDrawer = ({
             dataIndex: 'receiptVerified',
             render: (v: boolean) => (
               <Tag color={v ? 'success' : 'default'}>
-                {v ? '已验证' : '未取得已验证回执'}
+                {v ? '已验证' : '暂无已验证回执'}
               </Tag>
             ),
           },

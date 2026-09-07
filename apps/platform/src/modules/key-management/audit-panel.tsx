@@ -21,7 +21,7 @@ const KEY_EVENT_TYPES = new Set([
 
 const eventLabel: Record<string, string> = {
   CRYPTO_IDENTITY_REGISTERED: '会话身份注册',
-  A100_SIMULATED_ATTESTATION_ISSUED: '模拟证明签发',
+  A100_SIMULATED_ATTESTATION_ISSUED: '证明签发',
   A100_SIMULATED_GRANT_STORED: '一次性授权签署',
   EXECUTION_GRANT_ISSUED: '执行授权签发',
   EXECUTION_GRANT_CONSUMED: '执行授权消费',
