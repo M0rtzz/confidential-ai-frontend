@@ -58,7 +58,14 @@ import { TemplateDrawer } from './template-drawer';
 import { VersionsDrawer } from './versions-drawer';
 import styles from './index.less';
 
-const CATEGORY_ORDER = ['数据输入', '数据处理', '特征工程', '统计分析', '机器学习'];
+const CATEGORY_ORDER = [
+  '数据输入',
+  '数据处理',
+  '特征工程',
+  '统计分析',
+  '机器学习',
+  '深度学习',
+];
 
 const METRIC_LABELS: Record<string, string> = {
   accuracy: '准确率 Accuracy',
