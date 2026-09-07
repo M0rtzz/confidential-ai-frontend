@@ -86,15 +86,17 @@ const apiRequest = <T>(
 export const ConfidentialAssetApi = {
   request: apiRequest,
   generateData: (data: {
-    providerId: string;
     prompt: string;
     fields: string[];
     rowCount: number;
-    apiKey?: string;
-    baseUrl?: string;
-    modelId?: string;
   }) =>
-    post<{ providerId: string; format: 'CSV'; rowCount: number; csv: string }>(
+    post<{
+      configVersion: number;
+      modelId: string;
+      format: 'CSV';
+      rowCount: number;
+      csv: string;
+    }>(
       '/confidential-assets/generate-data',
       data,
     ),

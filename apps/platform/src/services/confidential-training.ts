@@ -109,7 +109,15 @@ export const ConfidentialTrainingApi = {
       `/confidential-training-tasks/${taskId}/outputs/collect`,
     ),
   logs: (taskId: string) =>
-    api<{ taskId: string; status: string; logs: string }>(
+    api<{
+      taskId: string;
+      status?: string;
+      logs: string;
+      snapshot?: boolean;
+      savedAt?: string;
+      truncated?: boolean;
+      unavailableReason?: string;
+    }>(
       'GET',
       `/confidential-training-tasks/${taskId}/logs`,
     ),

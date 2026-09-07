@@ -214,7 +214,18 @@ export const ConfidentialTrainingComponent = () => {
 
   const showLogs = async (task: ConfidentialTrainingTask) => {
     try {
-      setLogs((await ConfidentialTrainingApi.logs(task.taskId)).logs || '当前尚无日志');
+      const result = await ConfidentialTrainingApi.logs(task.taskId);
+      const notes = [
+        result.snapshot
+          ? `已保存的末尾日志${result.savedAt ? ` · ${formatTime(result.savedAt)}` : ''}`
+          : '',
+        result.truncated ? '日志超过 64 KiB，仅保留末尾内容' : '',
+      ].filter(Boolean);
+      setLogs(
+        [notes.length ? `[${notes.join('；')}]` : '', result.logs].filter(Boolean).join('\n') ||
+          result.unavailableReason ||
+          '当前尚无日志',
+      );
     } catch (failure) {
       message.error(failure instanceof Error ? failure.message : '日志加载失败');
     }
@@ -238,10 +249,10 @@ export const ConfidentialTrainingComponent = () => {
       <Row justify="space-between" align="middle" style={{ marginBottom: 20 }}>
         <Col>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            节点机密训练任务
+            大模型训练任务
           </Typography.Title>
           <Typography.Text type="secondary">
-            双资产审批和一次性密钥释放后，在 CipherGPU 内执行 GPU 训练与结果加密
+            双资产审批和一次性密钥释放后，在 CipherGPU 内执行大模型训练与结果加密
           </Typography.Text>
         </Col>
         <Col>
@@ -389,7 +400,14 @@ export const ConfidentialTrainingComponent = () => {
                     等待客户放钥
                   </Button>
                 )}
-                {['RUNNING', 'ENCRYPTING_OUTPUTS', 'OUTPUT_READY', 'FAILED'].includes(
+                {[
+                  'RUNNING',
+                  'ENCRYPTING_OUTPUTS',
+                  'OUTPUT_READY',
+                  'COMPLETED',
+                  'FAILED',
+                  'CANCELLED',
+                ].includes(
                   row.status,
                 ) && (
                   <Button

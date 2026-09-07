@@ -1,8 +1,10 @@
 import {
+  Alert,
   Button,
   DatePicker,
   Form,
   Input,
+  InputNumber,
   message,
   Modal,
   Popconfirm,
@@ -15,13 +17,15 @@ import {
   Segmented,
   Tabs,
 } from 'antd';
-import { UploadOutlined, ApiOutlined } from '@ant-design/icons';
+import { UploadOutlined, ApiOutlined, RobotOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { MvpPage, RefreshButton, formatTime } from '@/modules/data-sandbox-mvp/common';
+import { AiConfigApi, type AiConfig } from '@/services/ai-config';
+import { ConfidentialAssetApi } from '@/services/confidential-assets';
 import { DataAssetApi, DataSandboxRecord, responseData } from '@/services/data-sandbox';
 
 import { DataAssetPreviewTable } from './preview-table';
@@ -67,6 +71,15 @@ export const DataCatalogComponent = () => {
   const [addMode, setAddMode] = useState('file');
   const [apiForm] = Form.useForm();
   const [databaseForm] = Form.useForm();
+  const [aiForm] = Form.useForm();
+  const [aiConfig, setAiConfig] = useState<AiConfig>();
+  const [generatedData, setGeneratedData] = useState<{
+    csv: string;
+    rowCount: number;
+    configVersion: number;
+    modelId: string;
+  }>();
+  const [aiLoading, setAiLoading] = useState(false);
   const [databasePreview, setDatabasePreview] = useState<DataSandboxRecord>();
   const [databaseLoading, setDatabaseLoading] = useState(false);
   const databaseType = Form.useWatch('databaseType', databaseForm);
@@ -191,6 +204,80 @@ export const DataCatalogComponent = () => {
       message.error(error.message || 'API 快照添加失败');
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  const openAddMode = (mode: string) => {
+    setAddMode(mode);
+    if (mode === 'ai') {
+      void AiConfigApi.current()
+        .then(setAiConfig)
+        .catch(() => setAiConfig(undefined));
+    }
+  };
+
+  const generateAiData = async () => {
+    try {
+      const values = await aiForm.validateFields();
+      setAiLoading(true);
+      const result = await ConfidentialAssetApi.generateData({
+        prompt: String(values.prompt).trim(),
+        fields: String(values.fields)
+          .split(',')
+          .map((field) => field.trim())
+          .filter(Boolean),
+        rowCount: Number(values.rowCount || 20),
+      });
+      setGeneratedData(result);
+      message.success(`已生成并校验 ${result.rowCount} 行 CSV 数据`);
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error(error.message || 'AI 数据生成失败');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const saveAiData = async () => {
+    if (!generatedData) {
+      message.warning('请先生成并预览数据');
+      return;
+    }
+    try {
+      const values = await aiForm.validateFields();
+      setAiLoading(true);
+      const body = new FormData();
+      body.append(
+        'file',
+        new File([generatedData.csv], `${String(values.name).trim()}.csv`, {
+          type: 'text/csv',
+        }),
+      );
+      const params = new URLSearchParams({
+        ingestionType: 'AI_GENERATED',
+        generationConfigVersion: String(generatedData.configVersion),
+        generationModelId: generatedData.modelId,
+      });
+      const response = await fetch(`/api/v1alpha1/data-assets/files/upload?${params}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'User-Token': localStorage.getItem('User-Token') || '' },
+        body,
+      });
+      const payload = await response.json();
+      if (!response.ok || payload?.status?.code) {
+        throw new Error(payload?.status?.msg || `HTTP ${response.status}`);
+      }
+      message.success('AI 生成数据已加入数据目录');
+      setGeneratedData(undefined);
+      aiForm.resetFields();
+      setAddOpen(false);
+      await refresh();
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error(error.message || 'AI 生成数据入库失败');
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -507,7 +594,7 @@ export const DataCatalogComponent = () => {
       >
         <Tabs
           activeKey={addMode}
-          onChange={setAddMode}
+          onChange={openAddMode}
           items={[
             {
               key: 'file',
@@ -697,7 +784,67 @@ export const DataCatalogComponent = () => {
                 </Form>
               ),
             },
-          ]}
+            {
+              key: 'ai',
+              label: 'AI 生成数据',
+              children: (
+                <Form
+                  form={aiForm}
+                  layout="vertical"
+                  initialValues={{
+                    rowCount: 20,
+                    fields: 'name,age,city',
+                  }}
+                >
+                  <Alert
+                    showIcon
+                    type={aiConfig?.configured && aiConfig.enabled ? 'success' : 'warning'}
+                    message={
+                      aiConfig?.configured
+                        ? `当前 AI 配置：${aiConfig.modelId}（v${aiConfig.version}）`
+                        : '当前机构尚未配置 AI 服务'
+                    }
+                    description="在右上角用户菜单的“AI 配置”中统一维护模型地址和凭据。"
+                    style={{ marginBottom: 16 }}
+                  />
+                  <Form.Item name="name" label="数据名称" rules={[{ required: true }]}>
+                    <Input placeholder="ai_generated_data" />
+                  </Form.Item>
+                  <Form.Item name="prompt" label="生成要求" rules={[{ required: true }]}>
+                    <Input.TextArea rows={3} placeholder="生成用于功能测试的模拟数据" />
+                  </Form.Item>
+                  <Space align="start" style={{ width: '100%' }}>
+                    <Form.Item name="fields" label="字段（逗号分隔）" rules={[{ required: true }]}>
+                      <Input style={{ width: 430 }} />
+                    </Form.Item>
+                    <Form.Item name="rowCount" label="条数">
+                      <InputNumber min={1} max={1000} />
+                    </Form.Item>
+                  </Space>
+                  <Space>
+                    <Button icon={<RobotOutlined />} loading={aiLoading} onClick={() => void generateAiData()}>
+                      生成并校验
+                    </Button>
+                    <Button type="primary" disabled={!generatedData} loading={aiLoading} onClick={() => void saveAiData()}>
+                      确认添加
+                    </Button>
+                  </Space>
+                  {generatedData && (
+                    <Input.TextArea
+                      value={generatedData.csv}
+                      readOnly
+                      rows={8}
+                      style={{ marginTop: 16 }}
+                    />
+                  )}
+                </Form>
+              ),
+            },
+          ].sort(
+            (left, right) =>
+              ['file', 'table', 'api', 'ai'].indexOf(left.key) -
+              ['file', 'table', 'api', 'ai'].indexOf(right.key),
+          )}
         />
       </Modal>
       <Modal

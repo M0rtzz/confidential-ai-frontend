@@ -8,6 +8,7 @@ import {
   RobotOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   Button,
   Descriptions,
   Drawer,
@@ -45,6 +46,10 @@ import {
   type TrustedDomain,
 } from '@/security/crypto';
 import {
+  AiConfigApi,
+  type AiConfig,
+} from '@/services/ai-config';
+import {
   ConfidentialAssetApi,
   hydrateEncryptedPayload,
   type AssetUseRequest,
@@ -61,10 +66,6 @@ type UploadForm = {
   description: string;
   domainId: string;
   algorithm: ContentEncryptionAlgorithm;
-  providerId?: string;
-  baseUrl?: string;
-  modelId?: string;
-  apiKey?: string;
   prompt?: string;
   fields?: string;
   rowCount?: number;
@@ -347,7 +348,13 @@ const ownerKey = async (domainId: string): Promise<PublicKeyInfo> => {
   };
 };
 
-export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) => {
+export const AssetManagementPanel = ({
+  domains,
+  assetType,
+}: {
+  domains: TrustedDomain[];
+  assetType: 'DATA' | 'MODEL';
+}) => {
   const [assets, setAssets] = useState<ConfidentialAsset[]>([]);
   const [usingDemo, setUsingDemo] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -356,6 +363,7 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
   const [aiMode, setAiMode] = useState(false);
   const [generatedCsv, setGeneratedCsv] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [aiConfig, setAiConfig] = useState<AiConfig>();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -409,12 +417,14 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       domainId: domainOptions[0]?.value,
       algorithm: 'AES-256-GCM',
       rowCount: 20,
-      providerId: 'platform-model-api',
-      baseUrl: 'http://host.docker.internal:39089/v1',
-      modelId: '',
       fields: 'sepal_length,sepal_width,petal_length,petal_width,species',
     });
     setUploadOpen(true);
+    if (generated) {
+      void AiConfigApi.current()
+        .then(setAiConfig)
+        .catch(() => setAiConfig(undefined));
+    }
   };
 
   const generateCsv = async () => {
@@ -425,18 +435,13 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
     }
     setGenerating(true);
     try {
-      const providerId = values.providerId || 'platform-model-api';
       const result = await ConfidentialAssetApi.generateData({
-        providerId,
         prompt: values.prompt,
         fields: (values.fields || '')
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
         rowCount: values.rowCount || 20,
-        apiKey: values.apiKey?.trim(),
-        baseUrl: values.baseUrl?.trim(),
-        modelId: values.modelId?.trim(),
       });
       setGeneratedCsv(result.csv);
       message.success(`已通过大模型 API 生成并校验 ${result.rowCount} 行 CSV 数据`);
@@ -533,7 +538,6 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
       setStage('已完成');
       setProgress(100);
       message.success('密文已保存到受管存储节点');
-      form.setFieldValue('apiKey', '');
       setUploadOpen(false);
       await refresh();
     } catch (error) {
@@ -699,15 +703,17 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
 
   return (
     <>
-      <Tabs
-        tabBarExtraContent={
-          <Space wrap>
+      <Space wrap style={{ width: '100%', justifyContent: 'flex-end', marginBottom: 16 }}>
+        {assetType === 'DATA' ? (
+          <>
             <Button icon={<CloudUploadOutlined />} onClick={() => openUpload('DATA')}>
               上传数据
             </Button>
             <Button icon={<RobotOutlined />} onClick={() => openUpload('DATA', true)}>
               AI 生成数据
             </Button>
+          </>
+        ) : (
             <Button
               type="primary"
               icon={<FileProtectOutlined />}
@@ -715,34 +721,13 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
             >
               上传模型权重
             </Button>
-          </Space>
-        }
-        items={[
-          {
-            key: 'data',
-            label: '数据',
-            children: (
-              <Table
-                rowKey="assetId"
-                loading={loading}
-                dataSource={assets.filter((item) => item.assetType === 'DATA')}
-                columns={columns('DATA')}
-              />
-            ),
-          },
-          {
-            key: 'model',
-            label: '模型权重',
-            children: (
-              <Table
-                rowKey="assetId"
-                loading={loading}
-                dataSource={assets.filter((item) => item.assetType === 'MODEL')}
-                columns={columns('MODEL')}
-              />
-            ),
-          },
-        ]}
+        )}
+      </Space>
+      <Table
+        rowKey="assetId"
+        loading={loading}
+        dataSource={assets.filter((item) => item.assetType === assetType)}
+        columns={columns(assetType)}
       />
 
       <Modal
@@ -760,7 +745,6 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
         onOk={() => void upload()}
         onCancel={() => {
           if (!submitting) {
-            form.setFieldValue('apiKey', '');
             setUploadOpen(false);
           }
         }}
@@ -768,22 +752,17 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
         <Form form={form} layout="vertical">
           {aiMode ? (
             <>
-              <Form.Item
-                label="模型 API 地址"
-                name="baseUrl"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="https://api.deepseek.com 或 http://host.docker.internal:39089/v1" />
-              </Form.Item>
-              <Form.Item label="模型名称（留空自动发现）" name="modelId">
-                <Input placeholder="deepseek-chat" />
-              </Form.Item>
-              <Form.Item label="API Key（仅本次生成使用）" name="apiKey">
-                <Input.Password
-                  autoComplete="new-password"
-                  placeholder="DeepSeek / OpenAI API Key"
-                />
-              </Form.Item>
+              <Alert
+                showIcon
+                type={aiConfig?.configured && aiConfig.enabled ? 'success' : 'warning'}
+                message={
+                  aiConfig?.configured
+                    ? `当前 AI 配置：${aiConfig.modelId}（v${aiConfig.version}）`
+                    : '当前机构尚未配置 AI 服务'
+                }
+                description="地址、模型和 API Key 统一在右上角用户菜单的“AI 配置”中维护。"
+                style={{ marginBottom: 16 }}
+              />
               <Form.Item
                 label="生成要求"
                 name="prompt"
@@ -1056,7 +1035,11 @@ const UsageTable = ({
   />
 );
 
-export const ResultAssetPanel = () => {
+export const ResultAssetPanel = ({
+  assetType,
+}: {
+  assetType: 'RESULT_DATA' | 'RESULT_MODEL';
+}) => {
   const [assets, setAssets] = useState<ConfidentialAsset[]>([]);
   const [usingDemo, setUsingDemo] = useState(false);
   const [preview, setPreview] = useState<{
@@ -1233,12 +1216,7 @@ export const ResultAssetPanel = () => {
   );
   return (
     <>
-      <Tabs
-        items={[
-          { key: 'data', label: '结果数据', children: table('RESULT_DATA') },
-          { key: 'model', label: '结果模型权重', children: table('RESULT_MODEL') },
-        ]}
-      />
+      {table(assetType)}
       <Drawer
         title={`${preview?.asset.name || ''} · ${
           preview?.plain ? '临时明文预览' : '密文预览'
