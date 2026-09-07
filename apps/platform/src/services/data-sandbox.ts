@@ -91,6 +91,8 @@ export const DataSandboxApi = {
   approvalHistory: (id: string) =>
     get<DataSandboxRecord[]>('/approvals/history', { id }),
   approvalConfig: () => get<DataSandboxRecord>('/approvals/config'),
+  // TEE 环境可选的加密能力与技术要求对照；取值随实例硬件探测结果变化
+  teeCapabilities: <T = DataSandboxRecord>() => get<T>('/tee-capabilities'),
 
   logs: (params?: DataSandboxRecord) => get<DataSandboxRecord[]>('/logs', params),
   retention: () => get<DataSandboxRecord[]>('/logs/retention'),

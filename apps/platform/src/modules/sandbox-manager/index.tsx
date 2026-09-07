@@ -30,6 +30,10 @@ import { LoginService } from '@/modules/login/login.service';
 import { useModel } from '@/util/valtio-helper';
 import { checkAllApproved } from '@/modules/p2p-project-list/components/common';
 
+import { CapabilityPanel } from './capability-panel';
+import { encryptionSummary, toSelectOptions } from './capabilities';
+import type { TeeCapabilities } from './capabilities';
+
 const formatError = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
@@ -62,6 +66,7 @@ export const SandboxManagerComponent = () => {
   const [createAssets, setCreateAssets] = useState<DataSandboxRecord[]>([]);
   /** 可授权的可信计算算子：供数方投票批准的就是这份清单的子集 */
   const [operators, setOperators] = useState<DataSandboxRecord[]>([]);
+  const [capabilities, setCapabilities] = useState<TeeCapabilities>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -121,19 +126,28 @@ export const SandboxManagerComponent = () => {
     setLoading(true);
     setError('');
     try {
-      const [sandboxResponse, imageResponse, projectResponse, operatorResponse] =
-        await Promise.all([
-          // TEE环境创建审批以节点 platformNodeId 作为 owner_id 保存；登录用户的
-          // ownerId 可能是机构/账号 ID，使用它会把审批后创建的TEE环境过滤掉。
-          DataSandboxApi.sandboxes({ ownerId: currentNodeId }),
-          DataSandboxApi.images(),
-          API.P2PProjectController.listP2PProject(),
-          DataSandboxApi.approvalOperators(),
-        ]);
+      const [
+        sandboxResponse,
+        imageResponse,
+        projectResponse,
+        operatorResponse,
+        capabilityResponse,
+      ] = await Promise.all([
+        // TEE环境创建审批以节点 platformNodeId 作为 owner_id 保存；登录用户的
+        // ownerId 可能是机构/账号 ID，使用它会把审批后创建的TEE环境过滤掉。
+        DataSandboxApi.sandboxes({ ownerId: currentNodeId }),
+        DataSandboxApi.images(),
+        API.P2PProjectController.listP2PProject(),
+        DataSandboxApi.approvalOperators(),
+        DataSandboxApi.teeCapabilities<TeeCapabilities>(),
+      ]);
       setItems(responseData(sandboxResponse, []));
       setImages(responseData(imageResponse, []));
       setProjects(responseData(projectResponse, []));
       setOperators(responseData(operatorResponse, []));
+      setCapabilities(
+        responseData(capabilityResponse, undefined as unknown as TeeCapabilities),
+      );
     } catch (requestError: unknown) {
       const detail = formatError(requestError, '加载TEE环境失败');
       setError(detail);
@@ -349,6 +363,33 @@ export const SandboxManagerComponent = () => {
       render: (_: unknown, record: DataSandboxRecord) =>
         `${record.cpu_cores}C / ${record.memory_gb}GB / GPU ${record.gpu_count} / ${record.storage_gb}GB`,
     },
+    {
+      title: '加密类型',
+      render: (_: unknown, record: DataSandboxRecord) => {
+        const summary = encryptionSummary(record.cpu_encryption, record.gpu_encryption);
+        return summary === '未启用' ? (
+          <Typography.Text type="secondary">未启用</Typography.Text>
+        ) : (
+          <Space direction="vertical" size={0}>
+            <span>{summary}</span>
+            {record.content_algorithm ? (
+              <span style={{ color: '#8c8c8c', fontSize: 12 }}>
+                {String(record.content_algorithm)}
+              </span>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
+      title: '安全档位',
+      render: (_: unknown, record: DataSandboxRecord) =>
+        record.attestation_requirement === 'REQUIRE_HARDWARE' ? (
+          <Tag color="success">要求硬件证明</Tag>
+        ) : (
+          <Tag color="warning">允许仿真证据</Tag>
+        ),
+    },
     { title: '到期时间', dataIndex: 'expires_at', render: formatTime },
     {
       title: '操作',
@@ -425,8 +466,8 @@ export const SandboxManagerComponent = () => {
 
   return (
     <MvpPage
-      title="TEE环境列表"
-      description="查看项目TEE环境，并提交延期、规格、数据挂载与销毁申请"
+      title="TEE环境管理"
+      description="创建与管理TEE环境，配置CPU与GPU加密，并提交延期、规格、数据挂载与销毁申请"
       error={error}
       onRetry={refresh}
       extra={
@@ -443,12 +484,13 @@ export const SandboxManagerComponent = () => {
         </>
       }
     >
+      <CapabilityPanel capabilities={capabilities} />
       <Table
         rowKey="id"
         loading={loading}
         columns={columns}
         dataSource={items}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1400 }}
       />
 
       <Modal
@@ -467,6 +509,9 @@ export const SandboxManagerComponent = () => {
             memoryGb: 4,
             gpuCount: 0,
             storageGb: 20,
+            cpuEncryption: 'NONE',
+            gpuEncryption: 'NONE',
+            attestationRequirement: 'ALLOW_SIMULATION',
           }}
           onFinish={async (values) => {
             try {
@@ -570,6 +615,63 @@ export const SandboxManagerComponent = () => {
               <InputNumber min={1} />
             </Form.Item>
           </Space>
+          <Typography.Text strong>加密设置</Typography.Text>
+          <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
+            不可选的项表示本实例未探测到对应能力，鼠标悬停可看原因。
+          </Typography.Paragraph>
+          <Form.Item
+            name="cpuEncryption"
+            label="CPU 硬件隔离"
+            tooltip="选择用于内存加密与安全内存分区的 CPU TEE 技术"
+          >
+            <Select options={toSelectOptions(capabilities?.cpuEncryptions)} />
+          </Form.Item>
+          <Form.Item
+            name="gpuEncryption"
+            label="GPU 密态执行"
+            tooltip="gpu-cc 要求 GPU 硬件机密隔离；系统拒绝把该档位降级到模拟环境"
+          >
+            <Select
+              options={toSelectOptions(capabilities?.gpuEncryptions)}
+              onChange={(value) =>
+                form.setFieldValue(
+                  'contentAlgorithm',
+                  value === 'NONE' ? undefined : capabilities?.defaultContentAlgorithm,
+                )
+              }
+            />
+          </Form.Item>
+          <Form.Item
+            noStyle
+            shouldUpdate={(before, after) =>
+              before.gpuEncryption !== after.gpuEncryption
+            }
+          >
+            {({ getFieldValue }) =>
+              getFieldValue('gpuEncryption') === 'NONE' ? null : (
+                <Form.Item
+                  name="contentAlgorithm"
+                  label="内容加密算法"
+                  tooltip="ds-envelope/v2 发布的算法，权重与数据在浏览器内按此算法分块加密"
+                  rules={[{ required: true, message: '请选择内容加密算法' }]}
+                >
+                  <Select
+                    options={(capabilities?.contentAlgorithms || []).map((item) => ({
+                      value: item,
+                      label: item,
+                    }))}
+                  />
+                </Form.Item>
+              )
+            }
+          </Form.Item>
+          <Form.Item
+            name="attestationRequirement"
+            label="证明校验"
+            tooltip="要求硬件证明时，仿真档位的实例不能承接该环境"
+          >
+            <Select options={toSelectOptions(capabilities?.attestationRequirements)} />
+          </Form.Item>
           <Form.Item
             name="expiresAt"
             label="到期时间"
