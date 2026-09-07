@@ -310,6 +310,7 @@ export const ModelApprovalComponent = () => {
   const [activeTab, setActiveTab] = useState('mine');
   const [mine, setMine] = useState<DataSandboxRecord[]>([]);
   const [pending, setPending] = useState<DataSandboxRecord[]>([]);
+  const [reviewed, setReviewed] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -330,12 +331,14 @@ export const ModelApprovalComponent = () => {
     setLoading(true);
     setError('');
     try {
-      const [m, p] = await Promise.all([
+      const [m, p, r] = await Promise.all([
         DataModelApi.approvalMine({ keyword }),
         DataModelApi.approvalPending({ keyword }),
+        DataModelApi.approvalReviewed({ keyword }),
       ]);
       setMine(responseData(m, []));
       setPending(responseData(p, []));
+      setReviewed(responseData(r, []));
     } catch (requestError: unknown) {
       const detail = formatError(requestError, '加载审批列表失败');
       setError(detail);
@@ -377,12 +380,12 @@ export const ModelApprovalComponent = () => {
     openDetail(requestedApprovalId);
   }, [openDetail, requestedApprovalId]);
 
-  const approve = async (action: 'APPROVE' | 'REJECT') => {
-    if (!detail) return;
+  const approve = async (action: 'APPROVE' | 'REJECT', approvalId = detail?.id) => {
+    if (!approvalId) return;
     try {
       responseData(
         await DataModelApi.modelApiApprovalAction({
-          id: detail.id,
+          id: approvalId,
           action,
           comment: action === 'REJECT' ? '供数方审批驳回' : '供数方审批同意',
         }),
@@ -506,7 +509,7 @@ export const ModelApprovalComponent = () => {
   return (
     <MvpPage
       title="模型审批管理"
-      description="可视化建模保存的模型使用了供数方数据发布 API 时的供数方审批：我的申请 / 待我审批"
+      description="可视化建模保存的模型使用了供数方数据发布 API 时的供数方审批：我的申请 / 待我审批 / 已审核"
       error={error}
       onRetry={refresh}
       extra={
@@ -546,6 +549,17 @@ export const ModelApprovalComponent = () => {
                 rowKey="id"
                 loading={loading}
                 dataSource={pending}
+                locale={{
+                  emptyText: (
+                    <span>
+                      暂无待审批申请，已处理记录可在
+                      <Button type="link" onClick={() => setActiveTab('reviewed')}>
+                        已审核
+                      </Button>
+                      中查看
+                    </span>
+                  ),
+                }}
                 columns={[
                   ...commonColumns,
                   {
@@ -558,22 +572,14 @@ export const ModelApprovalComponent = () => {
                           <Button
                             type="primary"
                             size="small"
-                            onClick={() => {
-                              openDetail(row.id).then(() =>
-                                setTimeout(() => approve('APPROVE'), 400),
-                              );
-                            }}
+                            onClick={() => approve('APPROVE', row.id)}
                           >
                             同意
                           </Button>
                           <Button
                             danger
                             size="small"
-                            onClick={() => {
-                              openDetail(row.id).then(() =>
-                                setTimeout(() => approve('REJECT'), 400),
-                              );
-                            }}
+                            onClick={() => approve('REJECT', row.id)}
                           >
                             拒绝
                           </Button>
@@ -582,6 +588,28 @@ export const ModelApprovalComponent = () => {
                         '-'
                       ),
                   },
+                ]}
+                pagination={{ pageSize: 10, showSizeChanger: true }}
+              />
+            ),
+          },
+          {
+            key: 'reviewed',
+            label: `已审核${reviewed.length ? ` (${reviewed.length})` : ''}`,
+            children: (
+              <Table
+                rowKey="id"
+                loading={loading}
+                dataSource={reviewed}
+                columns={[
+                  ...commonColumns,
+                  {
+                    title: '我的审核结果',
+                    dataIndex: 'my_vote_status',
+                    render: (value: string) =>
+                      value === 'APPROVED' ? '已同意' : '已驳回',
+                  },
+                  { title: '审核时间', dataIndex: 'my_voted_at', render: formatTime },
                 ]}
                 pagination={{ pageSize: 10, showSizeChanger: true }}
               />

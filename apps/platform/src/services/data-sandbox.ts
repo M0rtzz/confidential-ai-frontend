@@ -491,8 +491,7 @@ export const DataDevApi = {
     }),
   cancelTask: (id: string) => devPost('/tasks/cancel', { id }),
   retryTask: (id: string) => devPost<DataSandboxRecord>('/tasks/retry', { id }),
-  retryScan: (id: string) =>
-    devPost<DataSandboxRecord>('/tasks/retry-scan', { id }),
+  retryScan: (id: string) => devPost<DataSandboxRecord>('/tasks/retry-scan', { id }),
   taskApprovalMine: (params?: DataSandboxRecord) =>
     devGet<DataSandboxRecord[]>('/task-approvals/mine', params),
   taskApprovalPending: (keyword = '') =>
@@ -605,6 +604,8 @@ export const DataModelApi = {
     modelApiGet<DataSandboxRecord[]>('/approvals/mine', params),
   approvalPending: (params?: DataSandboxRecord) =>
     modelApiGet<DataSandboxRecord[]>('/approvals/pending', params),
+  approvalReviewed: (params?: DataSandboxRecord) =>
+    modelApiGet<DataSandboxRecord[]>('/approvals/reviewed', params),
   modelApiApprovalDetail: (id: string) =>
     modelApiGet<DataSandboxRecord>('/approvals/detail', { id }),
   modelApiApprovalAction: (data: DataSandboxRecord) =>
