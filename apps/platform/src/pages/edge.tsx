@@ -224,7 +224,7 @@ const menuItems: EdgeMenuItem[] = [
     ends: [EndRole.CENTER],
     children: [
       {
-        label: '大模型密态管理',
+        label: '部署与推理',
         key: 'llm-confidential-management',
         icon: <CloudServerOutlined />,
         component: (
@@ -234,7 +234,7 @@ const menuItems: EdgeMenuItem[] = [
         ),
       },
       {
-        label: '可信计算与密文资产',
+        label: '数据与权重',
         key: 'confidential-compute',
         icon: <SafetyCertificateOutlined />,
         component: (
@@ -244,7 +244,7 @@ const menuItems: EdgeMenuItem[] = [
         ),
       },
       {
-        label: '机密训练',
+        label: '大模型训练',
         key: 'confidential-training',
         icon: <ExperimentOutlined />,
         component: (

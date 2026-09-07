@@ -553,10 +553,10 @@ export const ConfidentialComputeComponent = () => {
       <div className={styles.header}>
         <div>
           <Typography.Title level={4} className={styles.heading}>
-            数据与模型权重机密计算
+            数据与权重
           </Typography.Title>
           <Typography.Text type="secondary">
-            加密上传、审批授权、受控计算与加密结果管理
+            模型数据与模型权重的加密上传、审批授权和结果管理
           </Typography.Text>
         </div>
         <Tooltip title="刷新">
@@ -579,30 +579,54 @@ export const ConfidentialComputeComponent = () => {
         <Tabs
           items={[
             {
-              key: 'assets',
-              label: '数据与模型权重管理',
-              children: <AssetManagementPanel domains={visibleDomains} />,
-            },
-            {
-              key: 'domains',
-              label: '可信域',
+              key: 'model-data',
+              label: '模型数据管理',
               children: (
-                <DomainPanel
-                  domains={visibleDomains}
-                  loading={loading}
-                  adapterSource="api"
+                <Tabs
+                  items={[
+                    {
+                      key: 'original-data',
+                      label: '原始数据',
+                      children: (
+                        <AssetManagementPanel
+                          domains={visibleDomains}
+                          assetType="DATA"
+                        />
+                      ),
+                    },
+                    {
+                      key: 'result-data',
+                      label: '结果数据',
+                      children: <ResultAssetPanel assetType="RESULT_DATA" />,
+                    },
+                  ]}
                 />
               ),
             },
             {
-              key: 'protocol',
-              label: '协议验证',
-              children: <ProtocolPanel domains={visibleDomains} />,
-            },
-            {
-              key: 'results',
-              label: '结果数据与模型权重管理',
-              children: <ResultAssetPanel />,
+              key: 'model-weights',
+              label: '模型权重管理',
+              children: (
+                <Tabs
+                  items={[
+                    {
+                      key: 'original-model',
+                      label: '原始模型权重',
+                      children: (
+                        <AssetManagementPanel
+                          domains={visibleDomains}
+                          assetType="MODEL"
+                        />
+                      ),
+                    },
+                    {
+                      key: 'result-model',
+                      label: '结果模型权重',
+                      children: <ResultAssetPanel assetType="RESULT_MODEL" />,
+                    },
+                  ]}
+                />
+              ),
             },
           ]}
         />

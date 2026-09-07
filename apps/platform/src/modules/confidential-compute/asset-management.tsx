@@ -347,7 +347,13 @@ const ownerKey = async (domainId: string): Promise<PublicKeyInfo> => {
   };
 };
 
-export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) => {
+export const AssetManagementPanel = ({
+  domains,
+  assetType,
+}: {
+  domains: TrustedDomain[];
+  assetType: 'DATA' | 'MODEL';
+}) => {
   const [assets, setAssets] = useState<ConfidentialAsset[]>([]);
   const [usingDemo, setUsingDemo] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -699,15 +705,17 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
 
   return (
     <>
-      <Tabs
-        tabBarExtraContent={
-          <Space wrap>
+      <Space wrap style={{ width: '100%', justifyContent: 'flex-end', marginBottom: 16 }}>
+        {assetType === 'DATA' ? (
+          <>
             <Button icon={<CloudUploadOutlined />} onClick={() => openUpload('DATA')}>
               上传数据
             </Button>
             <Button icon={<RobotOutlined />} onClick={() => openUpload('DATA', true)}>
               AI 生成数据
             </Button>
+          </>
+        ) : (
             <Button
               type="primary"
               icon={<FileProtectOutlined />}
@@ -715,34 +723,13 @@ export const AssetManagementPanel = ({ domains }: { domains: TrustedDomain[] }) 
             >
               上传模型权重
             </Button>
-          </Space>
-        }
-        items={[
-          {
-            key: 'data',
-            label: '数据',
-            children: (
-              <Table
-                rowKey="assetId"
-                loading={loading}
-                dataSource={assets.filter((item) => item.assetType === 'DATA')}
-                columns={columns('DATA')}
-              />
-            ),
-          },
-          {
-            key: 'model',
-            label: '模型权重',
-            children: (
-              <Table
-                rowKey="assetId"
-                loading={loading}
-                dataSource={assets.filter((item) => item.assetType === 'MODEL')}
-                columns={columns('MODEL')}
-              />
-            ),
-          },
-        ]}
+        )}
+      </Space>
+      <Table
+        rowKey="assetId"
+        loading={loading}
+        dataSource={assets.filter((item) => item.assetType === assetType)}
+        columns={columns(assetType)}
       />
 
       <Modal
@@ -1056,7 +1043,11 @@ const UsageTable = ({
   />
 );
 
-export const ResultAssetPanel = () => {
+export const ResultAssetPanel = ({
+  assetType,
+}: {
+  assetType: 'RESULT_DATA' | 'RESULT_MODEL';
+}) => {
   const [assets, setAssets] = useState<ConfidentialAsset[]>([]);
   const [usingDemo, setUsingDemo] = useState(false);
   const [preview, setPreview] = useState<{
@@ -1233,12 +1224,7 @@ export const ResultAssetPanel = () => {
   );
   return (
     <>
-      <Tabs
-        items={[
-          { key: 'data', label: '结果数据', children: table('RESULT_DATA') },
-          { key: 'model', label: '结果模型权重', children: table('RESULT_MODEL') },
-        ]}
-      />
+      {table(assetType)}
       <Drawer
         title={`${preview?.asset.name || ''} · ${
           preview?.plain ? '临时明文预览' : '密文预览'

@@ -62,7 +62,7 @@ export const LlmConfidentialManagement = () => {
       >
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>
-            大模型密态管理
+            部署与推理
           </Typography.Title>
           <Typography.Text type="secondary">
             模型包整体加密保存、审核发布、授权启动与受控推理
