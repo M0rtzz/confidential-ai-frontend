@@ -20,6 +20,7 @@ import { EdgeAuthWrapper } from '@/components/edge-wrapper-auth';
 import { EndRoleBadge } from '@/components/end-role-badge';
 import { hasAccess, Platform } from '@/components/platform-wrapper';
 import { GuideTourService } from '@/modules/guide-tour/guide-tour-service';
+import { AiConfigModal } from '@/modules/ai-config';
 import { ChangePasswordModal } from '@/modules/login/component/change-password';
 import { LoginService } from '@/modules/login/login.service';
 import platformConfig from '@/platform.config';
@@ -76,6 +77,7 @@ export const HeaderComponent = () => {
 
   const [avatarLink, setAvatarLink] = useState('');
   const [avatarOfflineLink, setAvatarOfflineLink] = useState('');
+  const [aiConfigOpen, setAiConfigOpen] = useState(false);
 
   const onLogout = async () => {
     await logout(
@@ -143,6 +145,10 @@ export const HeaderComponent = () => {
     {
       key: 'changePassword',
       label: <div onClick={viewInstance.showChangePassword}>修改密码</div>,
+    },
+    {
+      key: 'aiConfig',
+      label: <div onClick={() => setAiConfigOpen(true)}>AI 配置</div>,
     },
     {
       key: 'logout',
@@ -324,6 +330,7 @@ export const HeaderComponent = () => {
           visible={viewInstance.showChangePasswordModel}
           close={() => (viewInstance.showChangePasswordModel = false)}
         />
+        <AiConfigModal open={aiConfigOpen} onClose={() => setAiConfigOpen(false)} />
       </div>
     </div>
   );

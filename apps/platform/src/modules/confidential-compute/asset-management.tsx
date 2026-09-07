@@ -8,6 +8,7 @@ import {
   RobotOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   Button,
   Descriptions,
   Drawer,
@@ -45,6 +46,10 @@ import {
   type TrustedDomain,
 } from '@/security/crypto';
 import {
+  AiConfigApi,
+  type AiConfig,
+} from '@/services/ai-config';
+import {
   ConfidentialAssetApi,
   hydrateEncryptedPayload,
   type AssetUseRequest,
@@ -61,10 +66,6 @@ type UploadForm = {
   description: string;
   domainId: string;
   algorithm: ContentEncryptionAlgorithm;
-  providerId?: string;
-  baseUrl?: string;
-  modelId?: string;
-  apiKey?: string;
   prompt?: string;
   fields?: string;
   rowCount?: number;
@@ -362,6 +363,7 @@ export const AssetManagementPanel = ({
   const [aiMode, setAiMode] = useState(false);
   const [generatedCsv, setGeneratedCsv] = useState('');
   const [generating, setGenerating] = useState(false);
+  const [aiConfig, setAiConfig] = useState<AiConfig>();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
@@ -415,12 +417,14 @@ export const AssetManagementPanel = ({
       domainId: domainOptions[0]?.value,
       algorithm: 'AES-256-GCM',
       rowCount: 20,
-      providerId: 'platform-model-api',
-      baseUrl: 'http://host.docker.internal:39089/v1',
-      modelId: '',
       fields: 'sepal_length,sepal_width,petal_length,petal_width,species',
     });
     setUploadOpen(true);
+    if (generated) {
+      void AiConfigApi.current()
+        .then(setAiConfig)
+        .catch(() => setAiConfig(undefined));
+    }
   };
 
   const generateCsv = async () => {
@@ -431,18 +435,13 @@ export const AssetManagementPanel = ({
     }
     setGenerating(true);
     try {
-      const providerId = values.providerId || 'platform-model-api';
       const result = await ConfidentialAssetApi.generateData({
-        providerId,
         prompt: values.prompt,
         fields: (values.fields || '')
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean),
         rowCount: values.rowCount || 20,
-        apiKey: values.apiKey?.trim(),
-        baseUrl: values.baseUrl?.trim(),
-        modelId: values.modelId?.trim(),
       });
       setGeneratedCsv(result.csv);
       message.success(`已通过大模型 API 生成并校验 ${result.rowCount} 行 CSV 数据`);
@@ -539,7 +538,6 @@ export const AssetManagementPanel = ({
       setStage('已完成');
       setProgress(100);
       message.success('密文已保存到受管存储节点');
-      form.setFieldValue('apiKey', '');
       setUploadOpen(false);
       await refresh();
     } catch (error) {
@@ -747,7 +745,6 @@ export const AssetManagementPanel = ({
         onOk={() => void upload()}
         onCancel={() => {
           if (!submitting) {
-            form.setFieldValue('apiKey', '');
             setUploadOpen(false);
           }
         }}
@@ -755,22 +752,17 @@ export const AssetManagementPanel = ({
         <Form form={form} layout="vertical">
           {aiMode ? (
             <>
-              <Form.Item
-                label="模型 API 地址"
-                name="baseUrl"
-                rules={[{ required: true }]}
-              >
-                <Input placeholder="https://api.deepseek.com 或 http://host.docker.internal:39089/v1" />
-              </Form.Item>
-              <Form.Item label="模型名称（留空自动发现）" name="modelId">
-                <Input placeholder="deepseek-chat" />
-              </Form.Item>
-              <Form.Item label="API Key（仅本次生成使用）" name="apiKey">
-                <Input.Password
-                  autoComplete="new-password"
-                  placeholder="DeepSeek / OpenAI API Key"
-                />
-              </Form.Item>
+              <Alert
+                showIcon
+                type={aiConfig?.configured && aiConfig.enabled ? 'success' : 'warning'}
+                message={
+                  aiConfig?.configured
+                    ? `当前 AI 配置：${aiConfig.modelId}（v${aiConfig.version}）`
+                    : '当前机构尚未配置 AI 服务'
+                }
+                description="地址、模型和 API Key 统一在右上角用户菜单的“AI 配置”中维护。"
+                style={{ marginBottom: 16 }}
+              />
               <Form.Item
                 label="生成要求"
                 name="prompt"
