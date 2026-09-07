@@ -102,6 +102,11 @@
   color: rgb(0 0 0 / 55%);
   font-size: 12px;
   gap: 4px 10px;
+
+  // 指标名与数值之间有空格，不锁住会在窄卡片里断开，只有该段折行、与其余段不齐
+  > span {
+    white-space: nowrap;
+  }
 }
 
 .detailPanel {

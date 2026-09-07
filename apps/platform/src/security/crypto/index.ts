@@ -9,3 +9,4 @@ export * from './random';
 export * from './sessionIdentity';
 export * from './types';
 export * from './userKeyManager';
+export * from './userKeyRotation';
