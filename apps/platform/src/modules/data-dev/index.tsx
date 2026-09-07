@@ -68,6 +68,11 @@ const runModeLabels: Record<string, string> = {
 };
 
 const statusLabels: Record<string, string> = {
+  AI_SCANNING: 'AI 扫描中',
+  SCAN_FAILED: '扫描失败',
+  REVIEW_PENDING: '待供数方审核',
+  REVIEW_REJECTED: '审核拒绝',
+  REVIEW_EXPIRED: '审核已过期',
   PENDING: '待执行',
   RUNNING: '执行中',
   SUCCEEDED: '成功',
@@ -76,6 +81,11 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
+  AI_SCANNING: 'processing',
+  SCAN_FAILED: 'error',
+  REVIEW_PENDING: 'warning',
+  REVIEW_REJECTED: 'error',
+  REVIEW_EXPIRED: 'default',
   PENDING: 'default',
   RUNNING: 'processing',
   SUCCEEDED: 'success',
@@ -684,7 +694,7 @@ export const DataDevComponent = () => {
       } else {
         responseData(await DataDevApi.submitTask(payload), {});
       }
-      message.success('任务已提交');
+      message.success('任务申请已受理；TEE 任务将在 AI 扫描和供数方审核通过后执行');
       setTaskOpen(false);
       taskForm.resetFields();
       setPreview(undefined);
@@ -696,14 +706,20 @@ export const DataDevComponent = () => {
     }
   };
 
-  const directTask = async (row: DataSandboxRecord, action: 'cancel' | 'retry') => {
+  const directTask = async (
+    row: DataSandboxRecord,
+    action: 'cancel' | 'retry' | 'retryScan',
+  ) => {
     try {
       if (action === 'cancel') {
         responseData(await DataDevApi.cancelTask(row.id), {});
         message.success('任务已取消');
-      } else {
+      } else if (action === 'retry') {
         responseData(await DataDevApi.retryTask(row.id), {});
         message.success('已重新执行');
+      } else {
+        responseData(await DataDevApi.retryScan(row.id), {});
+        message.success('已重新发起 AI 扫描');
       }
       refreshTasks();
     } catch (error: any) {
@@ -967,6 +983,14 @@ export const DataDevComponent = () => {
                               onClick={() => directTask(row, 'retry')}
                             >
                               重试
+                            </Button>
+                          )}
+                          {row.status === 'SCAN_FAILED' && (
+                            <Button
+                              type="link"
+                              onClick={() => directTask(row, 'retryScan')}
+                            >
+                              重试扫描
                             </Button>
                           )}
                           {row.status === 'SUCCEEDED' && row.run_mode === 'DEV' && (

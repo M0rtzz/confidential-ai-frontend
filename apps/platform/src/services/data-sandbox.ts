@@ -489,6 +489,18 @@ export const DataDevApi = {
     }),
   cancelTask: (id: string) => devPost('/tasks/cancel', { id }),
   retryTask: (id: string) => devPost<DataSandboxRecord>('/tasks/retry', { id }),
+  retryScan: (id: string) =>
+    devPost<DataSandboxRecord>('/tasks/retry-scan', { id }),
+  taskApprovalMine: (params?: DataSandboxRecord) =>
+    devGet<DataSandboxRecord[]>('/task-approvals/mine', params),
+  taskApprovalPending: (keyword = '') =>
+    devGet<DataSandboxRecord[]>('/task-approvals/pending', { keyword }),
+  taskApprovalDetail: (id: string) =>
+    devGet<DataSandboxRecord>('/task-approvals/detail', { id }),
+  taskApprovalAction: (data: DataSandboxRecord) =>
+    devPost<DataSandboxRecord>('/task-approvals/action', data),
+  taskApprovalCancel: (id: string) =>
+    devPost<DataSandboxRecord>('/task-approvals/cancel', { id }),
   previewSource: (nodeId: string, datatableId: string, limit = 20) =>
     devGet<DataSandboxRecord>('/tasks/preview-source', { nodeId, datatableId, limit }),
   results: (nodeId = '') => devGet<DataSandboxRecord[]>('/tasks/results', { nodeId }),

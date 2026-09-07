@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Descriptions,
   Drawer,
@@ -19,6 +20,7 @@ import { history as umiHistory, useLocation } from 'umi';
 
 import { EndRole, getEndRole } from '@/components/platform-wrapper';
 import {
+  DataDevApi,
   DataSandboxApi,
   DataSandboxRecord,
   responseData,
@@ -33,6 +35,7 @@ const typeLabels: Record<string, string> = {
   CONFIG_CHANGE: '配置变更',
   RECYCLE: '回收',
   ASSET_DELETE: '数据删除',
+  DEV_TASK: '计算任务',
 };
 
 const typeColors: Record<string, string> = {
@@ -41,6 +44,7 @@ const typeColors: Record<string, string> = {
   SPEC_CHANGE: 'orange',
   RECYCLE: 'red',
   ASSET_DELETE: 'red',
+  DEV_TASK: 'purple',
 };
 
 const statusLabels: Record<string, string> = {
@@ -184,15 +188,31 @@ export const SandboxApprovalComponent = () => {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      setItems(
-        responseData(await DataSandboxApi.approvals({ status, type, keyword }), []),
-      );
+      const includeResources = type !== 'DEV_TASK';
+      const includeTasks = !type || type === 'DEV_TASK';
+      const [resources, taskApprovals] = await Promise.all([
+        includeResources
+          ? DataSandboxApi.approvals({ status, type, keyword })
+          : Promise.resolve({ status: { code: 0 }, data: [] }),
+        includeTasks
+          ? view === 'mine'
+            ? DataDevApi.taskApprovalMine({ status, keyword })
+            : DataDevApi.taskApprovalPending(keyword)
+          : Promise.resolve({ status: { code: 0 }, data: [] }),
+      ]);
+      const taskDirection = view === 'mine' ? 'OUTGOING' : 'INCOMING';
+      setItems([
+        ...responseData(resources as any, []),
+        ...responseData(taskApprovals as any, [])
+          .filter((item: DataSandboxRecord) => !status || item.status === status)
+          .map((item: DataSandboxRecord) => ({ ...item, direction: taskDirection })),
+      ]);
     } catch (error: any) {
       message.error(error.message || '加载申请单失败');
     } finally {
       setLoading(false);
     }
-  }, [status, type, keyword]);
+  }, [status, type, keyword, view]);
 
   useEffect(() => {
     refresh();
@@ -202,11 +222,17 @@ export const SandboxApprovalComponent = () => {
     if (!reviewItem) return;
     try {
       responseData(
-        await DataSandboxApi.approvalAction({
-          id: reviewItem.id,
-          action: reviewAction,
-          ...values,
-        }),
+        reviewItem.approval_type === 'DEV_TASK'
+          ? await DataDevApi.taskApprovalAction({
+              id: reviewItem.id,
+              action: reviewAction,
+              ...values,
+            })
+          : await DataSandboxApi.approvalAction({
+              id: reviewItem.id,
+              action: reviewAction,
+              ...values,
+            }),
         {},
       );
       message.success('审批操作完成');
@@ -221,7 +247,12 @@ export const SandboxApprovalComponent = () => {
 
   const directAction = async (item: DataSandboxRecord, action: string) => {
     try {
-      responseData(await DataSandboxApi.approvalAction({ id: item.id, action }), {});
+      responseData(
+        item.approval_type === 'DEV_TASK' && action === 'CANCEL'
+          ? await DataDevApi.taskApprovalCancel(item.id)
+          : await DataSandboxApi.approvalAction({ id: item.id, action }),
+        {},
+      );
       message.success('操作完成');
       refresh();
     } catch (error: any) {
@@ -399,17 +430,21 @@ export const SandboxApprovalComponent = () => {
                       拒绝
                     </Button>
                   )}
-                {view === 'mine' && row.status === 'REJECTED' && (
+                {view === 'mine' && row.approval_type !== 'DEV_TASK' && row.status === 'REJECTED' && (
                   <Button type="link" onClick={() => directAction(row, 'RESUBMIT')}>
                     提交复审
                   </Button>
                 )}
-                {view === 'mine' && row.status === 'FAILED' && (
+                {view === 'mine' && row.approval_type !== 'DEV_TASK' && row.status === 'FAILED' && (
                   <Button type="link" onClick={() => directAction(row, 'RETRY')}>
                     重试
                   </Button>
                 )}
-                {view === 'mine' && CANCELLABLE.includes(row.status) && (
+                {view === 'mine' &&
+                  ((row.approval_type === 'DEV_TASK' &&
+                    row.status === 'DATA_PROVIDER_REVIEW') ||
+                    (row.approval_type !== 'DEV_TASK' &&
+                      CANCELLABLE.includes(row.status))) && (
                   <Button type="link" onClick={() => directAction(row, 'CANCEL')}>
                     撤回
                   </Button>
@@ -417,9 +452,17 @@ export const SandboxApprovalComponent = () => {
                 <Button
                   type="link"
                   onClick={async () => {
-                    setHistory(
-                      responseData(await DataSandboxApi.approvalHistory(row.id), []),
-                    );
+                    if (row.approval_type === 'DEV_TASK') {
+                      const approval = responseData(
+                        await DataDevApi.taskApprovalDetail(row.id),
+                        {},
+                      );
+                      setHistory(approval.history || []);
+                    } else {
+                      setHistory(
+                        responseData(await DataSandboxApi.approvalHistory(row.id), []),
+                      );
+                    }
                     setHistoryOpen(true);
                   }}
                 >
@@ -433,7 +476,15 @@ export const SandboxApprovalComponent = () => {
                       return;
                     }
                     setDetail(
-                      responseData(await DataSandboxApi.approvalDetail(row.id), {}),
+                      row.approval_type === 'DEV_TASK'
+                        ? responseData(
+                            await DataDevApi.taskApprovalDetail(row.id),
+                            {},
+                          )
+                        : responseData(
+                            await DataSandboxApi.approvalDetail(row.id),
+                            {},
+                          ),
                     );
                   }}
                 >
@@ -504,6 +555,37 @@ export const SandboxApprovalComponent = () => {
           <div>所属节点 ID：{detail?.applicant_node_id || detail?.owner_id}</div>
           <div>所属项目：{detail?.project_name || detail?.project_id || '-'}</div>
           <div>提交人：{detail?.submitter}</div>
+          {detail?.approval_type === 'DEV_TASK' && (() => {
+            const payload = parseApprovalPayload(detail.payload || detail.payload_json);
+            const report = parseApprovalPayload(payload.aiReport);
+            return (
+              <>
+                <Alert
+                  showIcon
+                  type={['HIGH', 'CRITICAL'].includes(String(report.riskLevel)) ? 'error' : 'warning'}
+                  message={`AI 风险等级：${report.riskLevel || '未知'}`}
+                  description={String(report.summary || '无结论摘要')}
+                />
+                <Descriptions
+                  bordered
+                  size="small"
+                  column={1}
+                  items={[
+                    { key: 'task', label: '任务', children: payload.taskName || payload.taskId || '-' },
+                    { key: 'type', label: '执行类型', children: `${payload.execType || '-'} / ${payload.runMode || '-'}` },
+                    { key: 'snapshot', label: '快照摘要', children: payload.snapshotSha256 || '-' },
+                    { key: 'model', label: '审核模型', children: `${payload.aiModelId || '-'}（配置 v${payload.aiConfigVersion || 0}）` },
+                    { key: 'findings', label: '风险发现', children: JSON.stringify(report.findings || [], null, 2) },
+                    { key: 'limitations', label: '分析局限', children: JSON.stringify(report.limitations || [], null, 2) },
+                  ]}
+                />
+                <div>不可变执行代码：</div>
+                <pre style={{ maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap', background: '#f5f5f5', padding: 12 }}>
+                  {String(payload.code || '无可读代码')}
+                </pre>
+              </>
+            );
+          })()}
           {detail?.approval_type === 'ASSET_DELETE' && (
             <>
               <div>数据名称：{detail?.asset_detail?.name || '未知'}</div>
