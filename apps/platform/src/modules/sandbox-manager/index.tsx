@@ -30,7 +30,6 @@ import { LoginService } from '@/modules/login/login.service';
 import { useModel } from '@/util/valtio-helper';
 import { checkAllApproved } from '@/modules/p2p-project-list/components/common';
 
-import { CapabilityPanel } from './capability-panel';
 import { encryptionSummary, toSelectOptions } from './capabilities';
 import type { TeeCapabilities } from './capabilities';
 
@@ -458,7 +457,6 @@ export const SandboxManagerComponent = () => {
         </>
       }
     >
-      <CapabilityPanel capabilities={capabilities} />
       <Table
         rowKey="id"
         loading={loading}
