@@ -144,7 +144,7 @@ export const NodeConfigDrawer = () => {
     );
     switch (p.type) {
       case 'table': {
-        // 数据资源节点：选择沙箱已挂载数据表（MOUNT）
+        // 数据资源节点：选择TEE环境已挂载数据表（MOUNT）
         const mountTables = view.resources.filter((r) => r.kind === 'MOUNT');
         return (
           <Form.Item
@@ -155,7 +155,7 @@ export const NodeConfigDrawer = () => {
           >
             <Select
               showSearch
-              placeholder="选择沙箱已挂载数据表"
+              placeholder="选择TEE环境已挂载数据表"
               optionFilterProp="label"
               options={mountTables.map((r) => ({
                 label: `${r.name}（${r.tableName}）`,

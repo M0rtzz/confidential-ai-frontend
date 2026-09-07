@@ -222,7 +222,7 @@ export const UserManagementComponent = () => {
   return (
     <MvpPage
       title="用户管理"
-      description="管理可真实登录数据沙箱的用户账号；新建和重置密码均使用统一初始密码"
+      description="管理可真实登录TEE环境的用户账号；新建和重置密码均使用统一初始密码"
       extra={
         <Space>
           <Button

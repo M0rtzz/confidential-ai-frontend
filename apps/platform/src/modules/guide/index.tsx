@@ -32,7 +32,7 @@ export const GuidePageLayoutComponent = () => {
 };
 
 export class GuidePageLayoutView extends Model {
-  pageTitle = '数据沙箱管理';
+  pageTitle = 'TEE环境管理';
 
   homeLayoutService = getModel(HomeLayoutService);
 }

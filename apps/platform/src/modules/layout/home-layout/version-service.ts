@@ -10,7 +10,7 @@ const VERSION_DISPLAY_NAMES: Record<string, string> = {
   teeDmImage: '可信执行数据服务',
   teeAppImage: '可信执行应用服务',
   capsuleManagerSimImage: '密态数据管理服务',
-  secretpadImage: '数据沙箱平台',
+  secretpadImage: 'TEE环境平台',
   secretflowServingImage: '模型服务引擎',
   kusciaImage: '计算编排引擎',
   secretflowImage: '隐私计算引擎',

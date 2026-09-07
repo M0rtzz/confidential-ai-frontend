@@ -201,7 +201,7 @@ export const TenantManagementComponent = () => {
   return (
     <MvpPage
       title="租户管理"
-      description="管理当前节点服务器上的租户、资源配额与数据计算隔离策略"
+      description="管理当前节点服务器上的租户、资源配额与密文计算隔离策略"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           新增租户

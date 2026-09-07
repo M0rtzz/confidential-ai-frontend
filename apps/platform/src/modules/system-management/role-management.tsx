@@ -131,7 +131,7 @@ export const RoleManagementComponent = () => {
   return (
     <MvpPage
       title="角色管理"
-      description="按沙箱业务能力配置角色权限，并查看角色的用户分配情况"
+      description="按TEE环境业务能力配置角色权限，并查看角色的用户分配情况"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           新增角色
@@ -257,7 +257,7 @@ export const RoleManagementComponent = () => {
               rows={2}
               maxLength={100}
               showCount
-              placeholder="说明该角色在数据沙箱中的职责"
+              placeholder="说明该角色在TEE环境中的职责"
             />
           </Form.Item>
           <Form.Item label="角色权限" required>

@@ -27,7 +27,7 @@ export class RenderAction extends DAGContext implements ActionProtocol {
   async createX6Node(node: GraphNode) {
     const outputs = await this.context.hookService.createResult(node.id, node.codeName);
     const ports = await this.context.hookService.createPort(node.id, node.codeName);
-    // 沙箱画布的算子参数随节点模型下发，需带入 X6 data，
+    // TEE环境画布的算子参数随节点模型下发，需带入 X6 data，
     // 否则显式保存时从 X6 反解会丢失参数
     const { params } = node as GraphNode & { params?: Record<string, unknown> };
     return {

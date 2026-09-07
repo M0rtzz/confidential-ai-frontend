@@ -26,7 +26,7 @@ export type SandboxGraphNode = GraphModel['nodes'][number] & {
 };
 
 /**
- * 沙箱可视化画布的请求服务（@secretflow/dag RequestService 协议实现）。
+ * TEE环境可视化画布的请求服务（@secretflow/dag RequestService 协议实现）。
  * dagId 即 computeCanvasId：queryDag/saveDag 读写 ds_compute_canvas.graph_json，
  * 运行/状态/节点输出/日志全部走 /data-compute/canvas/* 端点。
  */

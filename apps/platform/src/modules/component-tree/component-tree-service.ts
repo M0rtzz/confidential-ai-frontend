@@ -244,8 +244,8 @@ export class DefaultComponentTreeService extends Model {
       });
       list.unshift({
         category: '',
-        title: { val: '沙箱智能建模' },
-        key: '沙箱智能建模',
+        title: { val: 'TEE环境智能建模' },
+        key: 'TEE环境智能建模',
         isLeaf: false,
         docString: '',
         children,
@@ -253,7 +253,7 @@ export class DefaultComponentTreeService extends Model {
     }
 
     const domainOrder = [
-      '沙箱智能建模',
+      'TEE环境智能建模',
       '数据准备',
       'data_filter',
       '特征处理',

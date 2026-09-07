@@ -118,7 +118,7 @@ export const IntelligentModelingComponent = () => {
   };
   return (
     <MvpPage
-      title="沙箱智能建模"
+      title="TEE环境智能建模"
       description="九个内置建模组件的参数预设与真实 DAG 执行入口"
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >

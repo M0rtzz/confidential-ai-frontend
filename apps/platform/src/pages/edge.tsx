@@ -186,11 +186,11 @@ const menuItems: EdgeMenuItem[] = [
     key: 'resource-management',
     children: [
       {
-        label: '沙箱列表',
+        label: 'TEE环境列表',
         key: 'sandbox-resource-application',
         icon: <ExperimentOutlined />,
         component: <SandboxManagerComponent />,
-        // 沙箱由中心端发起并分配算力，客户端只参与投票，不需要这份列表
+        // TEE环境由中心端发起并分配算力，客户端只参与投票，不需要这份列表
         ends: [EndRole.CENTER],
       },
       {
@@ -202,7 +202,7 @@ const menuItems: EdgeMenuItem[] = [
     ],
   },
   {
-    label: '数据计算',
+    label: '密文计算',
     icon: <CalculatorOutlined />,
     key: 'data-compute',
     component: <DataComputeEntryComponent />,

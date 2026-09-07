@@ -4,7 +4,7 @@ import { DefaultHookService } from '@secretflow/dag';
 const isVirtual = (code: string) => code === 'data.table';
 
 /**
- * 沙箱画布端口模型：单输入（top）+ 单输出（bottom）。
+ * TEE环境画布端口模型：单输入（top）+ 单输出（bottom）。
  * data.table 为虚拟数据资源节点，无输入端口。端口类型统一 '*' 放行任意连线
  * （输入约束「单输入算子」由后端 resolveInputTable 校验，前端 validateConnection 已禁止重复目标端口）。
  */

@@ -72,7 +72,7 @@ const sandboxListUrl = () => {
   return `/edge?${current.toString()}`;
 };
 
-/** 沙箱列表页地址：项目下没有沙箱时，从数据计算直接跳过去提交申请 */
+/** TEE环境列表页地址：项目下没有TEE环境时，从密文计算直接跳过去提交申请 */
 const sandboxListPageUrl = () => {
   const current = new URLSearchParams(window.location.search);
   current.set('tab', 'sandbox-resource-application');
@@ -105,16 +105,16 @@ const ComputeContext = ({
     if (!sandboxId) return;
     DataComputeApi.context(sandboxId)
       .then((res) => setContext(responseData(res, {})))
-      .catch((e: any) => setError(e.message || '沙箱上下文加载失败'));
+      .catch((e: any) => setError(e.message || 'TEE环境上下文加载失败'));
   }, [sandboxId]);
   if (!sandboxId)
     return (
       <Result
         status="info"
-        title="请先从数据计算首页选择沙箱"
+        title="请先从密文计算首页选择TEE环境"
         extra={
           <Button type="primary" onClick={() => history.push(sandboxListUrl())}>
-            返回数据计算首页
+            返回密文计算首页
           </Button>
         }
       />
@@ -125,8 +125,8 @@ const ComputeContext = ({
     return (
       <Result
         status="403"
-        title="该沙箱仅创建人可使用"
-        subTitle="项目其他参与节点可查看沙箱和审批信息，但不能执行计算。"
+        title="该TEE环境仅创建人可使用"
+        subTitle="项目其他参与节点可查看TEE环境和审批信息，但不能执行计算。"
       />
     );
   return <>{children(context)}</>;
@@ -140,7 +140,7 @@ export const DataComputeHomeComponent = () => {
     try {
       setProjects(responseData(await DataComputeApi.overview(), []));
     } catch (e: any) {
-      message.error(e.message || '加载数据计算项目失败');
+      message.error(e.message || '加载密文计算项目失败');
     } finally {
       setLoading(false);
     }
@@ -148,8 +148,8 @@ export const DataComputeHomeComponent = () => {
   useEffect(() => void refresh(), [refresh]);
   return (
     <MvpPage
-      title="数据计算首页"
-      description="按项目进入本节点可使用的沙箱，管理挂载数据并开展程序计算、数据分析和智能建模"
+      title="密文计算首页"
+      description="按项目进入本节点可使用的TEE环境，管理挂载数据并开展程序计算、数据分析和智能建模"
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >
       {!projects.length && !loading ? (
@@ -161,18 +161,18 @@ export const DataComputeHomeComponent = () => {
             <section key={project.project_id} className={styles.projectSection}>
               <div className={styles.projectHeader}>
                 <span className={styles.projectName}>{project.name}</span>
-                <span className={styles.projectMeta}>{sandboxes.length} 个沙箱</span>
+                <span className={styles.projectMeta}>{sandboxes.length} 个TEE环境</span>
               </div>
               {!sandboxes.length ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="该项目暂无沙箱，需先在沙箱列表提交创建申请并通过审核"
+                  description="该项目暂无TEE环境，需先在TEE环境列表提交创建申请并通过审核"
                 >
                   <Button
                     type="primary"
                     onClick={() => history.push(sandboxListPageUrl())}
                   >
-                    去申请沙箱
+                    去申请TEE环境
                   </Button>
                 </Empty>
               ) : (
@@ -232,7 +232,7 @@ export const DataComputeHomeComponent = () => {
                             )
                           }
                         >
-                          进入沙箱
+                          进入TEE环境
                         </Button>
                       </div>
                     </div>
@@ -263,7 +263,7 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
       syncClock(next.serverTime);
       setData(next);
     } catch (e: any) {
-      message.error(e.message || '加载沙箱数据目录失败');
+      message.error(e.message || '加载TEE环境数据目录失败');
     } finally {
       setLoading(false);
     }
@@ -398,7 +398,7 @@ const WorkspaceDataCatalog = ({ sandboxId }: { sandboxId: string }) => {
   ];
   return (
     <MvpPage
-      title="沙箱数据目录"
+      title="TEE环境数据目录"
       description=""
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >
@@ -432,7 +432,7 @@ export const SandboxWorkspaceComponent = () => {
     if (sandboxId)
       DataComputeApi.context(sandboxId)
         .then((r) => setContext(responseData(r, {})))
-        .catch((e: any) => setError(e.message || '沙箱上下文加载失败'));
+        .catch((e: any) => setError(e.message || 'TEE环境上下文加载失败'));
   }, [sandboxId]);
   if (!sandboxId) return <DataComputeHomeComponent />;
   if (error) return <Result status="error" title={error} />;
@@ -441,17 +441,19 @@ export const SandboxWorkspaceComponent = () => {
     return (
       <Result
         status="403"
-        title="沙箱已过期，无法进入"
-        subTitle="请返回沙箱列表续期或销毁该沙箱。"
+        title="TEE环境已过期，无法进入"
+        subTitle="请返回TEE环境列表续期或销毁该TEE环境。"
         extra={
-          <Button onClick={() => history.push(sandboxListUrl())}>返回沙箱列表</Button>
+          <Button onClick={() => history.push(sandboxListUrl())}>
+            返回TEE环境列表
+          </Button>
         }
       />
     );
   const c = { sandboxId, projectId: projectId || context.project?.project_id };
   const menu = [
-    { key: 'directory', icon: <TableOutlined />, label: '沙箱数据目录' },
-    { key: 'dev', icon: <CodeOutlined />, label: '沙箱方式开发' },
+    { key: 'directory', icon: <TableOutlined />, label: 'TEE环境数据目录' },
+    { key: 'dev', icon: <CodeOutlined />, label: 'TEE环境方式开发' },
     { key: 'visual', icon: <PartitionOutlined />, label: '可视化建模' },
     { key: 'algorithm', icon: <FundOutlined />, label: '自定义算法' },
   ];
@@ -481,7 +483,7 @@ export const SandboxWorkspaceComponent = () => {
             icon={<ArrowLeftOutlined />}
             onClick={() => history.push(sandboxListUrl())}
           >
-            返回沙箱列表
+            返回TEE环境列表
           </Button>
           <strong>{context.sandbox?.name}</strong>
           <span>{context.project?.name || c.projectId}</span>
@@ -1685,7 +1687,7 @@ const CanvasList = ({ context }: { context: DataSandboxRecord }) => {
     );
   return (
     <MvpPage
-      title="沙箱智能建模：可视化建模"
+      title="TEE环境智能建模：可视化建模"
       extra={
         <Button
           onClick={() => {

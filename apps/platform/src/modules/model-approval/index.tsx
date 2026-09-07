@@ -255,7 +255,7 @@ const TopologyGraph = ({ graphJson }: { graphJson?: string }) => {
   );
 };
 
-/** 数据浏览 Modal：审批方查看申请方沙箱中该数据的前 10 行快照。 */
+/** 数据浏览 Modal：审批方查看申请方TEE环境中该数据的前 10 行快照。 */
 const DataPreviewModal = ({
   item,
   onClose,

@@ -215,7 +215,7 @@ const TeeResultCards = ({ summaryValue }: { summaryValue?: unknown }) => {
 export const DataDevComponent = () => {
   const computeQuery = parse(useLocation().search);
   const sandboxId = String(computeQuery.sandboxId || '');
-  /* 沙箱权威库表（sandboxDbDirectory → 提交任务源表下拉） */
+  /* TEE环境权威库表（sandboxDbDirectory → 提交任务源表下拉） */
   const [sandboxTables, setSandboxTables] = useState<DataSandboxRecord[]>([]);
   /* --------------------------------- 制品 --------------------------------- */
   const [artifacts, setArtifacts] = useState<DataSandboxRecord[]>([]);
@@ -344,7 +344,7 @@ export const DataDevComponent = () => {
             syncClock(data.serverTime);
             setSandboxTables(data.items || []);
           })
-          .catch((error: any) => message.error(error.message || '加载沙箱表失败'));
+          .catch((error: any) => message.error(error.message || '加载TEE环境表失败'));
       }
     }
   }, [taskOpen]);
@@ -494,11 +494,11 @@ export const DataDevComponent = () => {
     setTaskOpen(true);
   };
 
-  /** 沙箱表预览：data-dev 沙箱表源（schema → header，rows 数组保持不变）。 */
+  /** TEE环境表预览：data-dev TEE环境表源（schema → header，rows 数组保持不变）。 */
   const previewSandboxTable = async () => {
     const { sourceTable, limit } = taskForm.getFieldsValue();
     if (!sandboxId || !sourceTable) {
-      message.warning('请先选择沙箱表');
+      message.warning('请先选择TEE环境表');
       return;
     }
     const source = sandboxTables.find((item) => item.tableName === sourceTable);
@@ -527,7 +527,7 @@ export const DataDevComponent = () => {
     }
   };
 
-  /** 自适应模板默认值：选中沙箱表后按 execType 预填脚本骨架（仅当文本框为空）。 */
+  /** 自适应模板默认值：选中TEE环境表后按 execType 预填脚本骨架（仅当文本框为空）。 */
   const onSourceTableChange = (sourceTable: string) => {
     const exec = taskForm.getFieldValue('execType');
     if (exec === 'SQL' && !taskForm.getFieldValue('sql')) {
@@ -679,7 +679,7 @@ export const DataDevComponent = () => {
         payload.jar = jarB64;
       }
       if (sandboxId) {
-        // 沙箱表源：走沙箱 SQLite 计算契约（源表/输出表/JDBC 注入）
+        // TEE环境表源：走TEE环境 SQLite 计算契约（源表/输出表/JDBC 注入）
         responseData(await DataDevApi.submitSandboxTask({ ...payload, sandboxId }), {});
       } else {
         responseData(await DataDevApi.submitTask(payload), {});
@@ -1256,12 +1256,16 @@ export const DataDevComponent = () => {
             </Form.Item>
           </Space>
           <Space size="large" wrap style={{ width: '100%' }}>
-            <Form.Item name="sourceTable" label="沙箱表" rules={[{ required: true }]}>
+            <Form.Item
+              name="sourceTable"
+              label="TEE环境表"
+              rules={[{ required: true }]}
+            >
               <Select
                 style={{ width: 360 }}
                 showSearch
                 optionFilterProp="label"
-                placeholder="选择沙箱 sandbox_data.db 中的表（计算结果不可作源）"
+                placeholder="选择TEE环境 sandbox_data.db 中的表（计算结果不可作源）"
                 onChange={onSourceTableChange}
                 options={sandboxTables
                   .filter(
@@ -1330,7 +1334,7 @@ export const DataDevComponent = () => {
               <Alert
                 type="info"
                 showIcon
-                message="JAR 运行契约：沙箱 DB 快照送 pod，经 --jdbc-url jdbc:sqlite:/workspace/sandbox_data.db 直连真实表名（另注入 --input-table/--output-table 与输入 CSV）；结果 CSV 写入 --output（或 stdout）；长驻服务超时终止判失败。"
+                message="JAR 运行契约：TEE环境 DB 快照送 pod，经 --jdbc-url jdbc:sqlite:/workspace/sandbox_data.db 直连真实表名（另注入 --input-table/--output-table 与输入 CSV）；结果 CSV 写入 --output（或 stdout）；长驻服务超时终止判失败。"
               />
             </>
           ) : (
@@ -1410,7 +1414,7 @@ export const DataDevComponent = () => {
                 <Alert
                   type="info"
                   showIcon
-                  message="函数执行契约：沙箱 DB 快照送 python-runner pod，包装器 create_function 注册 UDF 后执行下方 SQL；结果 CSV 回填。脚本 import 的库若缺失，运行时自动 pip 安装并记录本次导入。"
+                  message="函数执行契约：TEE环境 DB 快照送 python-runner pod，包装器 create_function 注册 UDF 后执行下方 SQL；结果 CSV 回填。脚本 import 的库若缺失，运行时自动 pip 安装并记录本次导入。"
                 />
               )}
             </>
@@ -1572,7 +1576,7 @@ export const DataDevComponent = () => {
             {detailItem.finished_at && (
               <div>完成：{formatTime(detailItem.finished_at)}</div>
             )}
-            {/* 沙箱任务的可信执行摘要存在 result_preview，详情接口按字段下发；
+            {/* TEE环境任务的可信执行摘要存在 result_preview，详情接口按字段下发；
                 画布节点仍沿用 result_summary。两者都交给同一张结果卡渲染。 */}
             <TeeResultCards
               summaryValue={
@@ -1706,7 +1710,7 @@ export const DataDevComponent = () => {
                 <Alert
                   type="warning"
                   showIcon
-                  message="计算结果仅支持预览与导出（数据目录），不能挂载到项目，也不能作为沙箱计算源。"
+                  message="计算结果仅支持预览与导出（数据目录），不能挂载到项目，也不能作为TEE环境计算源。"
                 />
               )}
             </Space>

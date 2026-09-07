@@ -95,8 +95,12 @@ const ApprovalParameters = ({ detail }: { detail?: DataSandboxRecord }) => {
     Array<{ key: string; label: string; children: unknown }>
   > = {
     CREATE: [
-      { key: 'name', label: '沙箱名称', children: payload.name || '-' },
-      { key: 'description', label: '沙箱描述', children: payload.description || '-' },
+      { key: 'name', label: 'TEE环境名称', children: payload.name || '-' },
+      {
+        key: 'description',
+        label: 'TEE环境描述',
+        children: payload.description || '-',
+      },
       {
         key: 'project',
         label: '所属项目',
@@ -141,7 +145,7 @@ const ApprovalParameters = ({ detail }: { detail?: DataSandboxRecord }) => {
     RECYCLE: [
       {
         key: 'sandboxName',
-        label: '沙箱名称',
+        label: 'TEE环境名称',
         children: payload.sandboxName || payload.name || '-',
       },
     ],
@@ -167,7 +171,7 @@ export const SandboxApprovalComponent = () => {
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
   const [keyword, setKeyword] = useState('');
-  // 中心端是运营方：沙箱由它发起、由供数客户端投票，两个视角都要保留
+  // 中心端是运营方：TEE环境由它发起、由供数客户端投票，两个视角都要保留
   const centerOnly = getEndRole() === EndRole.CENTER;
   const [view, setView] = useState('mine');
   const [reviewItem, setReviewItem] = useState<DataSandboxRecord>();
@@ -243,8 +247,8 @@ export const SandboxApprovalComponent = () => {
       title="项目资源审核"
       description={
         centerOnly
-          ? '作为可信执行方发起沙箱与数据资源申请，交由供数客户端投票；通过后由本端分配算力、拉起容器并挂载密文数据'
-          : '查看我的申请进度，并审核其他项目节点提交的沙箱或数据资源申请'
+          ? '作为可信执行方发起TEE环境与数据资源申请，交由供数客户端投票；通过后由本端分配算力、拉起容器并挂载密文数据'
+          : '查看我的申请进度，并审核其他项目节点提交的TEE环境或数据资源申请'
       }
       extra={<RefreshButton loading={loading} onClick={refresh} />}
     >

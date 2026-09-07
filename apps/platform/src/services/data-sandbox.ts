@@ -79,7 +79,7 @@ export const DataSandboxApi = {
     post<DataSandboxRecord>('/models/action', data),
   modelHistory: (id: string) => get<DataSandboxRecord[]>('/models/history', { id }),
 
-  // Z-03 沙箱资源申请与审批
+  // Z-03 TEE环境资源申请与审批
   approvals: (params?: DataSandboxRecord) =>
     get<DataSandboxRecord[]>('/approvals', params),
   approvalDetail: (id: string) => get<DataSandboxRecord>('/approvals/detail', { id }),
@@ -253,7 +253,7 @@ export const DataComputeApi = {
     computePost<DataSandboxRecord>('/canvases/delete', { id, sandboxId }),
   reports: (sandboxId: string, type = '') =>
     computeGet<DataSandboxRecord[]>('/reports', { sandboxId, type }),
-  // 沙箱权威库数据目录（Stage 3）：仅沙箱创建人
+  // TEE环境权威库数据目录（Stage 3）：仅TEE环境创建人
   sandboxDbDirectory: (sandboxId: string) =>
     computeGet<DataSandboxRecord>('/sandbox-db/directory', { sandboxId }),
   sandboxDbPreview: (sandboxId: string, tableName: string, limit = 20) =>

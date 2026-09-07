@@ -37,7 +37,7 @@ const HomePage = () => {
   const homeLayoutService = useModel(HomeLayoutService);
   const loginService = useModel(LoginService);
   useEffect(() => {
-    homeLayoutService.setSubTitle('数据沙箱管理');
+    homeLayoutService.setSubTitle('TEE环境管理');
     homeLayoutService.setBgClassName('centerBg');
     getUserInfo();
   }, []);

@@ -60,7 +60,7 @@ export class SandboxCanvasView extends Model {
     this.projectId = projectId || '';
   }
 
-  /** 路由切换沙箱或画布时清空上一画布的共享状态，避免跨沙箱复用。 */
+  /** 路由切换TEE环境或画布时清空上一画布的共享状态，避免跨TEE环境复用。 */
   setContext(canvasId: string, sandboxId: string, projectId: string) {
     const changed =
       this.canvasId !== canvasId ||

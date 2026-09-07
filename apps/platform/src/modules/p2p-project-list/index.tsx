@@ -51,7 +51,7 @@ import styles from './index.less';
 import { P2pProjectListService } from './p2p-project-list.service';
 
 export enum TabKey {
-  'PARTIES' = 'parties',
+  PARTIES = 'parties',
 }
 
 /** 项目挂载目录沿用数据目录的访问时间窗，边界为空表示不限制。 */
@@ -331,7 +331,7 @@ export const P2pProjectListComponent: React.FC = () => {
                               flex: 1,
                             }}
                           >
-                            <div className={styles.titleName}>沙箱数</div>
+                            <div className={styles.titleName}>TEE环境数</div>
                             <span
                               className={styles.count}
                               onClick={() =>
@@ -385,7 +385,7 @@ export const P2pProjectListComponent: React.FC = () => {
                           )
                         }
                       >
-                        沙箱目录
+                        TEE环境目录
                       </Button>
                       <P2pProjectButtons project={item} />
                     </div>
@@ -515,7 +515,7 @@ export const P2pProjectListComponent: React.FC = () => {
         />
       </Modal>
       <Modal
-        title={`项目沙箱目录${sandboxProjectName ? ` · ${sandboxProjectName}` : ''}`}
+        title={`项目TEE环境目录${sandboxProjectName ? ` · ${sandboxProjectName}` : ''}`}
         open={sandboxOpen}
         width={1200}
         footer={null}
@@ -526,7 +526,7 @@ export const P2pProjectListComponent: React.FC = () => {
           dataSource={projectSandboxes}
           scroll={{ x: 1200 }}
           columns={[
-            { title: '沙箱名称', dataIndex: 'name', fixed: 'left', width: 180 },
+            { title: 'TEE环境名称', dataIndex: 'name', fixed: 'left', width: 180 },
             {
               title: '创建节点',
               dataIndex: 'owner_node_name',

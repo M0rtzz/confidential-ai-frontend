@@ -28,7 +28,7 @@ export const TemplateDrawer = () => {
       );
       message.success('模板导入成功，已打开新画布');
       view.closeDrawer();
-      // 跳转到新画布（复用当前项目/沙箱上下文）
+      // 跳转到新画布（复用当前项目/TEE环境上下文）
       history.replace({
         pathname: '/dag',
         search: `projectId=${view.projectId}&sandboxId=${view.sandboxId}&mode=MPC&type=DAG&computeCanvasId=${canvas.id}`,

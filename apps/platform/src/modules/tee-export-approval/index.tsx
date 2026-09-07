@@ -410,7 +410,7 @@ export const TeeExportApprovalComponent = () => {
       ),
     },
     {
-      title: '项目 / 沙箱',
+      title: '项目 / TEE环境',
       key: 'source',
       render: (_: unknown, row: DataSandboxRecord) => (
         <Space
@@ -631,7 +631,7 @@ export const TeeExportApprovalComponent = () => {
   return (
     <MvpPage
       title="结果导出与审批"
-      description="按项目、沙箱和任务定位结果，统一管理导出申请与期限。时间均为北京时间。"
+      description="按项目、TEE环境和任务定位结果，统一管理导出申请与期限。时间均为北京时间。"
       error={error}
       onRetry={refresh}
       extra={<RefreshButton loading={loading} onClick={refresh} />}
@@ -673,7 +673,7 @@ export const TeeExportApprovalComponent = () => {
         />
         <Select
           allowClear
-          placeholder="沙箱"
+          placeholder="TEE环境"
           value={sandbox || undefined}
           onChange={(v) => setSandbox(v || '')}
           options={options('sandboxId', 'sandboxName')}
@@ -790,7 +790,7 @@ export const TeeExportApprovalComponent = () => {
                 ['结果名称', nameOf(detail)],
                 ['结果标识', idOf(detail)],
                 ['项目', detail.projectName || detail.projectId],
-                ['沙箱', detail.sandboxName || detail.sandboxId],
+                ['TEE环境', detail.sandboxName || detail.sandboxId],
                 ['来源任务', detail.taskName || detail.task_name],
                 ['运行标识', detail.runId || detail.run_id || detail.task_id],
                 ['生成时间', formatTime(detail.createdAt || detail.created_at)],

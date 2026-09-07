@@ -328,7 +328,7 @@ export const PolicyDrawer = ({
                 render: (v) => <Text copyable={{ text: v }}>{short(v, 18)}</Text>,
               },
               {
-                title: '沙箱',
+                title: 'TEE环境',
                 dataIndex: 'sandboxId',
                 render: (v) => <Text copyable={{ text: v }}>{short(v, 18)}</Text>,
               },

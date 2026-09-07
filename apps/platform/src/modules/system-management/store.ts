@@ -72,12 +72,12 @@ export const permissionTree = [
     ],
   },
   {
-    title: '沙箱资源',
+    title: 'TEE环境资源',
     key: 'group-resource',
     children: [
-      { title: '沙箱资源申请', key: 'sandbox:apply' },
+      { title: 'TEE环境资源申请', key: 'sandbox:apply' },
       { title: '项目资源审核', key: 'sandbox:review' },
-      { title: '数据计算', key: 'compute:use' },
+      { title: '密文计算', key: 'compute:use' },
       { title: '模型审批', key: 'model:review' },
     ],
   },
@@ -147,8 +147,8 @@ const DEFAULT_STATE: SystemManagementState = {
   roles: [
     {
       id: 'role-admin',
-      name: '沙箱管理员',
-      description: '管理沙箱平台、租户、用户、角色及全部资源',
+      name: 'TEE环境管理员',
+      description: '管理TEE环境平台、租户、用户、角色及全部资源',
       permissions: leafPermissions,
       system: true,
       createdAt: '2026-08-20T09:00:00+08:00',
@@ -172,7 +172,7 @@ const DEFAULT_STATE: SystemManagementState = {
     {
       id: 'role-developer',
       name: '数据开发人员',
-      description: '使用数据目录、数据计算和沙箱能力',
+      description: '使用数据目录、密文计算和TEE环境能力',
       permissions: [
         'workbench:view',
         'data:catalog',
@@ -197,7 +197,7 @@ const DEFAULT_STATE: SystemManagementState = {
     {
       id: 'user-admin',
       account: 'admin',
-      displayName: '沙箱管理员',
+      displayName: 'TEE环境管理员',
       tenantId: 'tenant-platform',
       roleIds: ['role-admin'],
       status: 'ENABLED',

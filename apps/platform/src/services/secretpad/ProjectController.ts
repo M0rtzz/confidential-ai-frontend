@@ -196,7 +196,7 @@ export async function getProject(
     },
   );
 
-  // 数据计算画布只能消费当前沙箱审批通过且已就绪的抽样脱敏数据。
+  // 密文计算画布只能消费当前TEE环境审批通过且已就绪的抽样脱敏数据。
   // 在项目详情这一统一入口过滤，可同时覆盖数据树、组件配置和快捷配置。
   const sandboxId = new URLSearchParams(window.location.search).get('sandboxId');
   if (window.location.pathname === '/dag' && sandboxId && result.data?.nodes) {

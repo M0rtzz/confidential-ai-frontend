@@ -100,7 +100,7 @@ export const SandboxManagerComponent = () => {
   const guideToApproval = (text: string) => {
     Modal.confirm({
       title: '需走审批流程',
-      content: `${text}需提交申请单审批，请在左侧「沙箱申请审批」菜单提交，审批通过后自动执行。`,
+      content: `${text}需提交申请单审批，请在左侧「TEE环境申请审批」菜单提交，审批通过后自动执行。`,
       okText: '知道了',
       cancelButtonProps: { style: { display: 'none' } },
     });
@@ -123,8 +123,8 @@ export const SandboxManagerComponent = () => {
     try {
       const [sandboxResponse, imageResponse, projectResponse, operatorResponse] =
         await Promise.all([
-          // 沙箱创建审批以节点 platformNodeId 作为 owner_id 保存；登录用户的
-          // ownerId 可能是机构/账号 ID，使用它会把审批后创建的沙箱过滤掉。
+          // TEE环境创建审批以节点 platformNodeId 作为 owner_id 保存；登录用户的
+          // ownerId 可能是机构/账号 ID，使用它会把审批后创建的TEE环境过滤掉。
           DataSandboxApi.sandboxes({ ownerId: currentNodeId }),
           DataSandboxApi.images(),
           API.P2PProjectController.listP2PProject(),
@@ -135,7 +135,7 @@ export const SandboxManagerComponent = () => {
       setProjects(responseData(projectResponse, []));
       setOperators(responseData(operatorResponse, []));
     } catch (requestError: unknown) {
-      const detail = formatError(requestError, '加载沙箱失败');
+      const detail = formatError(requestError, '加载TEE环境失败');
       setError(detail);
       message.error(detail);
     } finally {
@@ -164,7 +164,7 @@ export const SandboxManagerComponent = () => {
     }
   };
 
-  // Z-02 网络白名单：仅 ALLOW_LIST 策略沙箱提供管理入口
+  // Z-02 网络白名单：仅 ALLOW_LIST 策略TEE环境提供管理入口
   const loadAllowlist = async (sandboxId: string) => {
     setAllowlistLoading(true);
     try {
@@ -329,7 +329,7 @@ export const SandboxManagerComponent = () => {
 
   const columns = [
     {
-      title: '沙箱名称',
+      title: 'TEE环境名称',
       dataIndex: 'name',
       render: (name: string, record: DataSandboxRecord) => (
         <Space direction="vertical" size={0}>
@@ -425,8 +425,8 @@ export const SandboxManagerComponent = () => {
 
   return (
     <MvpPage
-      title="沙箱列表"
-      description="查看项目沙箱，并提交延期、规格、数据挂载与销毁申请"
+      title="TEE环境列表"
+      description="查看项目TEE环境，并提交延期、规格、数据挂载与销毁申请"
       error={error}
       onRetry={refresh}
       extra={
@@ -438,7 +438,7 @@ export const SandboxManagerComponent = () => {
               setCreateOpen(true);
             }}
           >
-            申请沙箱
+            申请TEE环境
           </Button>
         </>
       }
@@ -452,7 +452,7 @@ export const SandboxManagerComponent = () => {
       />
 
       <Modal
-        title="创建数据沙箱"
+        title="创建TEE环境"
         open={createOpen}
         width={680}
         onCancel={() => setCreateOpen(false)}
@@ -474,7 +474,7 @@ export const SandboxManagerComponent = () => {
                 (item) => item.enabled && item.id !== 'img-secretflow',
               );
               if (!defaultImage) {
-                message.error('暂无可用的环境镜像，无法申请沙箱');
+                message.error('暂无可用的环境镜像，无法申请TEE环境');
                 return;
               }
               responseData(
@@ -488,7 +488,7 @@ export const SandboxManagerComponent = () => {
                 }),
                 {},
               );
-              message.success('沙箱申请已提交');
+              message.success('TEE环境申请已提交');
               setCreateOpen(false);
               form.resetFields();
               refresh();
@@ -497,19 +497,19 @@ export const SandboxManagerComponent = () => {
             }
           }}
         >
-          <Form.Item name="name" label="沙箱名称" rules={[{ required: true }]}>
+          <Form.Item name="name" label="TEE环境名称" rules={[{ required: true }]}>
             <Input placeholder="例如：客户流失分析环境" />
           </Form.Item>
           <Form.Item
             name="description"
-            label="沙箱描述"
+            label="TEE环境描述"
             rules={[{ max: 500, message: '描述不能超过500个字符' }]}
           >
             <Input.TextArea
               rows={3}
               showCount
               maxLength={500}
-              placeholder="说明沙箱用途、开发任务或使用范围"
+              placeholder="说明TEE环境用途、开发任务或使用范围"
             />
           </Form.Item>
           <Form.Item name="projectId" label="所属项目" rules={[{ required: true }]}>
@@ -588,7 +588,7 @@ export const SandboxManagerComponent = () => {
       </Modal>
 
       <Modal
-        title={`申请沙箱续期：${renewItem?.name || ''}`}
+        title={`申请TEE环境续期：${renewItem?.name || ''}`}
         open={!!renewItem}
         onCancel={() => setRenewItem(undefined)}
         onOk={() => renewForm.submit()}
@@ -714,7 +714,7 @@ export const SandboxManagerComponent = () => {
         </Form>
       </Modal>
       <Modal
-        title="沙箱挂载数据"
+        title="TEE环境挂载数据"
         open={mountsOpen}
         width={850}
         footer={null}

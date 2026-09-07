@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { MvpPage, formatTime } from '@/modules/data-sandbox-mvp/common';
 import { DataAssetApi, DataSandboxRecord, responseData } from '@/services/data-sandbox';
 
-/** 本节点沙箱挂载数据控制：点击表格行设置能否使用。 */
+/** 本节点TEE环境挂载数据控制：点击表格行设置能否使用。 */
 export const UsageControlComponent = () => {
   const [rows, setRows] = useState<DataSandboxRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ export const UsageControlComponent = () => {
   useEffect(() => void refresh(), [refresh]);
 
   return (
-    <MvpPage title="数据控制" description="控制本节点沙箱已挂载数据能否参与计算">
+    <MvpPage title="数据控制" description="控制本节点TEE环境已挂载数据能否参与计算">
       <Table
         rowKey={(row) => `${row.sandbox_id}:${row.asset_id}`}
         loading={loading}
@@ -42,7 +42,7 @@ export const UsageControlComponent = () => {
         })}
         columns={[
           { title: '数据', dataIndex: 'asset_name' },
-          { title: '沙箱', dataIndex: 'sandbox_name' },
+          { title: 'TEE环境', dataIndex: 'sandbox_name' },
           { title: '提供方', dataIndex: 'provider_node_name', render: (v) => v || '-' },
           {
             title: '使用控制',
@@ -97,7 +97,7 @@ export const UsageControlComponent = () => {
         >
           <Form.Item
             name="allowUse"
-            label="是否允许在当前沙箱使用"
+            label="是否允许在当前TEE环境使用"
             valuePropName="checked"
           >
             <Switch checkedChildren="允许" unCheckedChildren="禁止" />

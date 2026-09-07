@@ -108,7 +108,7 @@ export const OperationCenterComponent = () => {
       <div className={styles.cards}>
         <Card>
           <Statistic
-            title="运行中沙箱"
+            title="运行中TEE环境"
             value={counts.runningSandboxes || 0}
             suffix={`/ ${counts.sandboxes || 0}`}
           />
@@ -131,7 +131,7 @@ export const OperationCenterComponent = () => {
         <Descriptions.Item label="系统状态">
           <Tag color="success">{overview.status || 'UNKNOWN'}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="Kuscia 沙箱运行接入">
+        <Descriptions.Item label="Kuscia TEE环境运行接入">
           {overview.kusciaIntegrationEnabled ? '已开启' : 'MVP 模拟状态（未开启）'}
         </Descriptions.Item>
         <Descriptions.Item label="快照目录">{overview.snapshotRoot}</Descriptions.Item>

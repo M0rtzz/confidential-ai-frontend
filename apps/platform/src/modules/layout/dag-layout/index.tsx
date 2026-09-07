@@ -199,7 +199,7 @@ export const DagLayout = () => {
     });
   }
 
-  // 沙箱可视化建模画布：进入 computeCanvasId 画布时切换为沙箱画布形态
+  // TEE环境可视化建模画布：进入 computeCanvasId 画布时切换为TEE环境画布形态
   if (computeCanvasId) {
     return <SandboxCanvasWorkspace />;
   }

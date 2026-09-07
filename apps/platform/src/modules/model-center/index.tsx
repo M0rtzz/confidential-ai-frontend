@@ -513,7 +513,7 @@ export const ModelCenterComponent = ({ context }: { context: DataSandboxRecord }
 
   return (
     <MvpPage
-      title="沙箱智能建模：自定义算法 / API 发布"
+      title="TEE环境智能建模：自定义算法 / API 发布"
       extra={
         <Space>
           <Button

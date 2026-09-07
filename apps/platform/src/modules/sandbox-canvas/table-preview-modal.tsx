@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { DataComputeApi, responseData } from '@/services/data-sandbox';
 
 /**
- * 沙箱数据表预览（数据资源 / 画布中间结果 / 组件输入数据 通用）：
+ * TEE环境数据表预览（数据资源 / 画布中间结果 / 组件输入数据 通用）：
  * 基于 /data-compute/sandbox-db/table-preview 读取 schema + 前 limit 行。
  */
 export const TablePreviewModal = ({
