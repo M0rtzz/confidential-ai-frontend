@@ -217,12 +217,14 @@ export const ConfidentialTrainingComponent = () => {
       const result = await ConfidentialTrainingApi.logs(task.taskId);
       const notes = [
         result.snapshot
-          ? `已保存的末尾日志${result.savedAt ? ` · ${formatTime(result.savedAt)}` : ''}`
+          ? `已保存的末尾日志${result.savedAt ? ` · ${time(result.savedAt)}` : ''}`
           : '',
         result.truncated ? '日志超过 64 KiB，仅保留末尾内容' : '',
       ].filter(Boolean);
       setLogs(
-        [notes.length ? `[${notes.join('；')}]` : '', result.logs].filter(Boolean).join('\n') ||
+        [notes.length ? `[${notes.join('；')}]` : '', result.logs]
+          .filter(Boolean)
+          .join('\n') ||
           result.unavailableReason ||
           '当前尚无日志',
       );
@@ -407,9 +409,7 @@ export const ConfidentialTrainingComponent = () => {
                   'COMPLETED',
                   'FAILED',
                   'CANCELLED',
-                ].includes(
-                  row.status,
-                ) && (
+                ].includes(row.status) && (
                   <Button
                     size="small"
                     icon={<FileTextOutlined />}
