@@ -24,6 +24,7 @@ import {
 } from 'antd';
 import { parse } from 'query-string';
 import { useCallback, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useLocation } from 'umi';
 
 import { EndRole, getEndRole } from '@/components/platform-wrapper';
@@ -247,6 +248,7 @@ export const DataDevComponent = () => {
   const [taskExecType, setTaskExecType] = useState('');
   const [taskKeyword, setTaskKeyword] = useState('');
   const [taskOpen, setTaskOpen] = useState(false);
+  const [taskSubmitting, setTaskSubmitting] = useState(false);
   const [taskForm] = Form.useForm();
   const taskExec = Form.useWatch('execType', taskForm);
   const selectedTable = Form.useWatch('sourceTable', taskForm);
@@ -594,6 +596,8 @@ export const DataDevComponent = () => {
   };
 
   const submitTask = async (values: DataSandboxRecord) => {
+    if (taskSubmitting) return;
+    setTaskSubmitting(true);
     try {
       if (sandboxId) {
         const source = sandboxTables.find(
@@ -698,15 +702,18 @@ export const DataDevComponent = () => {
       } else {
         responseData(await DataDevApi.submitTask(payload), {});
       }
-      message.success('任务申请已受理；TEE 任务将在 AI 扫描和供数方审核通过后执行');
-      setTaskOpen(false);
+      // 成功后先关闭弹窗，避免表单重置和列表刷新延后关闭操作。
+      flushSync(() => setTaskOpen(false));
       taskForm.resetFields();
       setPreview(undefined);
       setJarFile(undefined);
+      message.success('任务申请已受理；TEE 任务将在 AI 扫描和供数方审核通过后执行');
       refreshTasks();
       refreshArtifacts();
     } catch (error: any) {
       message.error(error.message || '提交失败');
+    } finally {
+      setTaskSubmitting(false);
     }
   };
 
@@ -1246,6 +1253,7 @@ export const DataDevComponent = () => {
       <Modal
         title="提交计算任务"
         open={taskOpen}
+        confirmLoading={taskSubmitting}
         width={820}
         onCancel={() => {
           setTaskOpen(false);
