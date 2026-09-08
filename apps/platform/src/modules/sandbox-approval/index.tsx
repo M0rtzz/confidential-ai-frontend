@@ -201,14 +201,21 @@ export const SandboxApprovalComponent = () => {
           : Promise.resolve({ status: { code: 0 }, data: [] }),
       ]);
       const taskDirection = view === 'mine' ? 'OUTGOING' : 'INCOMING';
-      setItems([
+      const approvals = [
         ...responseData(resources as any, []).filter(
           (item: DataSandboxRecord) => item.approval_type !== 'DEV_TASK',
         ),
         ...responseData(taskApprovals as any, [])
           .filter((item: DataSandboxRecord) => !status || item.status === status)
           .map((item: DataSandboxRecord) => ({ ...item, direction: taskDirection })),
-      ]);
+      ];
+      // 两类申请来自独立接口，合并后按提交时间统一排序。
+      approvals.sort(
+        (a, b) =>
+          (Date.parse(b.submitted_at || b.created_at || '') || 0) -
+          (Date.parse(a.submitted_at || a.created_at || '') || 0),
+      );
+      setItems(approvals);
     } catch (error: any) {
       message.error(error.message || '加载申请单失败');
     } finally {
